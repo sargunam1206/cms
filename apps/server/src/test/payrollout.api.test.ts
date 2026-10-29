@@ -132,3 +132,66 @@ describe('full and final settlement', () => {
     await request(app).delete(`/api/payroll/fnf/${saved._id}`).set(admin.auth).expect(409);
   });
 });
+
+describe('bulk salary import and combined payslips', () => {
+  it('checks a spreadsheet of salaries first, applies it all-or-nothing, and exports one PDF for a run', async () => {
+    const hr = await createPerson(roles.HR);
+    const emp = await createPerson(roles.Employee);
+    await request(app).post('/api/payroll/components').set(hr.auth).send({ code: 'BASIC', name: 'Basic', kind: 'earning', taxable: true, prorate: true, order: 1, active: true, fixedAmount: 0 });
+    await request(app).post('/api/payroll/components').set(hr.auth).send({ code: 'HRA', name: 'HRA', kind: 'earning', taxable: true, prorate: true, order: 2, active: true, fixedAmount: 0 });
+
+    // The template lists employees and a column per component
+    const tpl = await get('/api/payroll/salary-template', hr.auth).expect(200);
+    const tplWb = await sheet(tpl.body as Buffer);
+    const ws = tplWb.getWorksheet('Salaries')!;
+    const header = (ws.getRow(1).values as unknown[]).slice(1);
+    expect(header).toEqual(expect.arrayContaining(['Emp code', 'BASIC', 'HRA']));
+    await get('/api/payroll/salary-template', emp.auth).expect(403);
+
+    // Build a sheet: one good row, one with a bad amount
+    const upload = async (rows: unknown[][], apply = false, auth = hr.auth) => {
+      const wb = new ExcelJS.Workbook();
+      const w = wb.addWorksheet('Salaries');
+      w.addRow(['Emp code', 'Name', 'Effective from', 'BASIC', 'HRA']);
+      rows.forEach((r) => w.addRow(r));
+      const buf = Buffer.from(await wb.xlsx.writeBuffer());
+      const res = await request(app).post(`/api/payroll/salary-import${apply ? '?apply=1' : ''}`).set(auth).set('Content-Type', 'application/octet-stream').send(buf);
+      return res;
+    };
+    const good = [emp.employee.code, 'x', '2026-01-01', 30000, 'f:BASIC*0.4'];
+    const bad = ['NOPE99', 'x', '2026-01-01', 'abc', null];
+
+    const checked = (await upload([good, bad])).body;
+    expect(checked.applied).toBe(0);
+    expect(checked.errors).toBe(1);
+    expect(checked.rows.find((r: { code: string }) => r.code === 'NOPE99').errors.length).toBeGreaterThan(0);
+
+    // Applying with an error saves nothing
+    expect((await upload([good, bad], true)).body.applied).toBe(0);
+    expect((await request(app).get(`/api/payroll/structures/${emp.employee._id}`).set(hr.auth)).body).toHaveLength(0);
+
+    // A clean sheet applies
+    const done = (await upload([good], true)).body;
+    expect(done).toMatchObject({ applied: 1, errors: 0 });
+    const saved = (await request(app).get(`/api/payroll/structures/${emp.employee._id}`).set(hr.auth)).body;
+    expect(saved[0].lines).toEqual([{ code: 'BASIC', fixedAmount: 30000 }, { code: 'HRA', formula: 'BASIC*0.4' }]);
+    expect((await upload([good], true, emp.auth)).status).toBe(403);
+    expect((await upload([[emp.employee.code, 'x', 'tomorrow', 100, null]])).body.errors).toBe(1);
+    expect((await upload([[emp.employee.code, 'x', '2026-01-01', null, null]])).body.rows).toHaveLength(0); // blank row skipped
+
+    // Combined PDF: one page per payslip
+    await presentJuly(emp.employee._id);
+    const run = (await request(app).post('/api/payroll/runs').set(hr.auth).send({ month: '2026-07' }).expect(201)).body;
+    await get(`/api/payroll/runs/${run._id}/payslips.pdf`, hr.auth).expect(409); // nothing calculated yet
+    await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(hr.auth).expect(200);
+    const pdf = await get(`/api/payroll/runs/${run._id}/payslips.pdf`, hr.auth).expect(200);
+    expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+    await get(`/api/payroll/runs/${run._id}/payslips.pdf`, emp.auth).expect(403);
+  });
+});
+
+async function presentJuly(employee: unknown) {
+  const days = [];
+  for (let d = dayjs('2026-07-01'); d.month() === 6; d = d.add(1, 'day')) if (d.day() !== 0) days.push({ employee, date: d.format('YYYY-MM-DD'), status: 'present', source: 'self' });
+  await AttendanceDay.insertMany(days);
+}

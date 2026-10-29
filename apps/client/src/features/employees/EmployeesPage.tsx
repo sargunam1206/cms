@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Upload } from 'lucide-react';
 import { EMPLOYEE_STATUS, PERMISSIONS as P, TAX_REGIMES, employeeSchema, type EmployeeInput } from '@cms/shared';
 import { useDebounced, useGet, useSend } from '@/api/hooks';
 import type { Employee, Paged } from '@/api/types';
 import { useAuth } from '@/lib/auth';
 import { fmtDate } from '@/lib/utils';
 import { SalaryDialog } from '@/features/payroll/SalaryDialog';
+import { SalaryImportDialog } from '@/features/payroll/SalaryImportDialog';
 import { PageHeader } from '@/components/common/page';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export function EmployeesPage() {
   const [status, setStatus] = useState('active');
   const [department, setDepartment] = useState('');
   const [salaryFor, setSalaryFor] = useState<Employee | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const dq = useDebounced(q);
   const departments = useGet<string[]>(['employees', 'departments'], '/employees/departments');
@@ -36,11 +38,18 @@ export function EmployeesPage() {
         title="Employees"
         description={data ? `${data.total} employees` : undefined}
         actions={
-          can(P.EMPLOYEES_MANAGE) && (
-            <Button onClick={() => setEditing('new')}>
-              <Plus /> Add employee
-            </Button>
-          )
+          <>
+            {can(P.PAYROLL_MANAGE) && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload /> Import salaries
+              </Button>
+            )}
+            {can(P.EMPLOYEES_MANAGE) && (
+              <Button onClick={() => setEditing('new')}>
+                <Plus /> Add employee
+              </Button>
+            )}
+          </>
         }
       />
       <div className="mb-4 flex flex-wrap gap-2">
@@ -132,6 +141,7 @@ export function EmployeesPage() {
           </Button>
         </div>
       )}
+      <SalaryImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <SalaryDialog employee={salaryFor} onClose={() => setSalaryFor(null)} />
       <EmployeeDialog editing={editing} onClose={() => setEditing(null)} />
     </>

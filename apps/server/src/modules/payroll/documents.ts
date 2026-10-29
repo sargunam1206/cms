@@ -32,76 +32,87 @@ export const money = (paise: number | null | undefined) =>
 
 const mask = (v?: string | null) => (v ? `${'X'.repeat(Math.max(0, v.length - 4))}${v.slice(-4)}` : '-');
 
-/** A one-page payslip PDF. Bank account, PAN and UAN are masked on the printed copy. */
-export function payslipPdf(slip: SlipDoc, company = 'Company', layout?: { earnings: { code: string; name: string }[]; deductions: { code: string; name: string }[] }): Promise<Buffer> {
+type Layout = { earnings: { code: string; name: string }[]; deductions: { code: string; name: string }[] };
+
+/** Draws one payslip on the current page. Bank account, PAN and UAN are masked on the printed copy. */
+function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: string, layout?: Layout) {
+  const p = slip.person ?? {};
+  const L = 40;
+  const W = 515;
+  doc.font('Helvetica-Bold').fontSize(16).text(company, L, 40);
+  doc.font('Helvetica').fontSize(11).text(`Payslip for ${dayjs(`${slip.month}-01`).format('MMMM YYYY')}`, L, 62);
+  doc.moveTo(L, 84).lineTo(L + W, 84).stroke();
+
+  const info: [string, string][] = [
+    ['Employee', `${p.name ?? ''} (${p.code ?? ''})`],
+    ['Designation', p.designation || '-'],
+    ['Department', p.department || '-'],
+    ['Date of joining', p.dateOfJoining ? dayjs(p.dateOfJoining).format('DD MMM YYYY') : '-'],
+    ['PAN', mask(p.pan)],
+    ['UAN', mask(p.uan)],
+    ['Bank account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim()],
+    ['Paid days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0} (loss of pay: ${slip.attendance?.lopDays ?? 0})`],
+  ];
+  let y = 94;
+  info.forEach(([k, v], i) => {
+    const x = L + (i % 2) * 260;
+    if (i % 2 === 0 && i > 0) y += 16;
+    doc.font('Helvetica').fontSize(9).fillColor('#666').text(k, x, y, { width: 90 });
+    doc.fillColor('#000').text(v, x + 90, y, { width: 165 });
+  });
+  y += 30;
+
+  const table = (title: string, rows: Line[], total: number | null | undefined, x: number) => {
+    let ty = y;
+    doc.font('Helvetica-Bold').fontSize(10).text(title, x, ty, { width: 250 });
+    ty += 16;
+    doc.moveTo(x, ty - 3).lineTo(x + 250, ty - 3).stroke();
+    doc.font('Helvetica').fontSize(9);
+    for (const r of rows) {
+      doc.text(r.name ?? r.code ?? '', x, ty, { width: 170 });
+      doc.text(money(r.amount), x + 170, ty, { width: 80, align: 'right' });
+      ty += 14;
+    }
+    doc.moveTo(x, ty).lineTo(x + 250, ty).stroke();
+    doc.font('Helvetica-Bold').text('Total', x, ty + 4, { width: 170 });
+    doc.text(money(total), x + 170, ty + 4, { width: 80, align: 'right' });
+    return ty + 20;
+  };
+  // Standard rows are always printed, with 0.00 where there is no amount
+  const earnRows = layout ? fillRows(slip.earnings, layout.earnings) : slip.earnings;
+  const dedRows = layout ? fillRows(slip.deductions, layout.deductions) : slip.deductions;
+  const y1 = table('Earnings (Rs.)', earnRows, slip.gross, L);
+  const y2 = table('Deductions (Rs.)', dedRows, slip.totalDeductions, L + 265);
+  y = Math.max(y1, y2) + 14;
+
+  doc.rect(L, y, W, 28).fill('#f1f5f9');
+  doc.fillColor('#000').font('Helvetica-Bold').fontSize(12).text('Net pay', L + 10, y + 8);
+  doc.text(`Rs. ${money(slip.net)}`, L + 10, y + 8, { width: W - 20, align: 'right' });
+  y += 44;
+
+  if (slip.employerContributions?.length) {
+    doc.font('Helvetica').fontSize(8).fillColor('#666').text(`Employer contributions (not part of your pay): ${slip.employerContributions.map((e) => `${e.name} ${money(e.amount)}`).join('  |  ')}`, L, y, { width: W });
+  }
+  doc.fillColor('#888').fontSize(8).text('This is a computer-generated payslip.', L, 780, { width: W, align: 'center' });
+}
+
+/** One A4 page per payslip, in a single PDF. */
+export function payslipsPdf(slips: SlipDoc[], company = 'Company', layout?: Layout): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-
-    const p = slip.person ?? {};
-    const L = 40;
-    const W = 515;
-    doc.font('Helvetica-Bold').fontSize(16).text(company, L, 40);
-    doc.font('Helvetica').fontSize(11).text(`Payslip for ${dayjs(`${slip.month}-01`).format('MMMM YYYY')}`, L, 62);
-    doc.moveTo(L, 84).lineTo(L + W, 84).stroke();
-
-    const info: [string, string][] = [
-      ['Employee', `${p.name ?? ''} (${p.code ?? ''})`],
-      ['Designation', p.designation || '-'],
-      ['Department', p.department || '-'],
-      ['Date of joining', p.dateOfJoining ? dayjs(p.dateOfJoining).format('DD MMM YYYY') : '-'],
-      ['PAN', mask(p.pan)],
-      ['UAN', mask(p.uan)],
-      ['Bank account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim()],
-      ['Paid days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0} (loss of pay: ${slip.attendance?.lopDays ?? 0})`],
-    ];
-    let y = 94;
-    info.forEach(([k, v], i) => {
-      const x = L + (i % 2) * 260;
-      if (i % 2 === 0 && i > 0) y += 16;
-      doc.font('Helvetica').fontSize(9).fillColor('#666').text(k, x, y, { width: 90 });
-      doc.fillColor('#000').text(v, x + 90, y, { width: 165 });
+    slips.forEach((slip, i) => {
+      if (i > 0) doc.addPage();
+      drawPayslip(doc, slip, company, layout);
     });
-    y += 30;
-
-    const table = (title: string, rows: Line[], total: number | null | undefined, x: number) => {
-      let ty = y;
-      doc.font('Helvetica-Bold').fontSize(10).text(title, x, ty, { width: 250 });
-      ty += 16;
-      doc.moveTo(x, ty - 3).lineTo(x + 250, ty - 3).stroke();
-      doc.font('Helvetica').fontSize(9);
-      for (const r of rows) {
-        doc.text(r.name ?? r.code ?? '', x, ty, { width: 170 });
-        doc.text(money(r.amount), x + 170, ty, { width: 80, align: 'right' });
-        ty += 14;
-      }
-      doc.moveTo(x, ty).lineTo(x + 250, ty).stroke();
-      doc.font('Helvetica-Bold').text('Total', x, ty + 4, { width: 170 });
-      doc.text(money(total), x + 170, ty + 4, { width: 80, align: 'right' });
-      return ty + 20;
-    };
-    // Standard rows are always printed, with 0.00 where there is no amount
-    const earnRows = layout ? fillRows(slip.earnings, layout.earnings) : slip.earnings;
-    const dedRows = layout ? fillRows(slip.deductions, layout.deductions) : slip.deductions;
-    const y1 = table('Earnings (Rs.)', earnRows, slip.gross, L);
-    const y2 = table('Deductions (Rs.)', dedRows, slip.totalDeductions, L + 265);
-    y = Math.max(y1, y2) + 14;
-
-    doc.rect(L, y, W, 28).fill('#f1f5f9');
-    doc.fillColor('#000').font('Helvetica-Bold').fontSize(12).text('Net pay', L + 10, y + 8);
-    doc.text(`Rs. ${money(slip.net)}`, L + 10, y + 8, { width: W - 20, align: 'right' });
-    y += 44;
-
-    if (slip.employerContributions?.length) {
-      doc.font('Helvetica').fontSize(8).fillColor('#666').text(`Employer contributions (not part of your pay): ${slip.employerContributions.map((e) => `${e.name} ${money(e.amount)}`).join('  |  ')}`, L, y, { width: W });
-    }
-    doc.fillColor('#888').fontSize(8).text('This is a computer-generated payslip.', L, 780, { width: W, align: 'center' });
     doc.end();
   });
 }
+
+export const payslipPdf = (slip: SlipDoc, company = 'Company', layout?: Layout) => payslipsPdf([slip], company, layout);
 
 // ---------- Excel ----------
 const bold = (row: ExcelJS.Row) => {

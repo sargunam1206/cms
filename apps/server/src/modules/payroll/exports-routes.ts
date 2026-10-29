@@ -1,13 +1,14 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import { PERMISSIONS, objectId } from '@cms/shared';
 import { env } from '../../config/env';
 import { authenticate, requireEmployee, requirePermission } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { ah } from '../../utils/asyncHandler';
-import { conflict, notFound } from '../../utils/errors';
+import { badRequest, conflict, notFound } from '../../utils/errors';
 import { audit } from '../audit/model';
-import { REPORT_TYPES, bankSheet, payslipPdf, reportSheet, type SlipRecord } from './documents';
+import { REPORT_TYPES, bankSheet, payslipPdf, payslipsPdf, reportSheet, type SlipRecord } from './documents';
+import { applySalarySheet, checkRows, parseSalarySheet, salaryTemplate } from './salary-import';
 import { Payslip, PayrollRun } from './model';
 import { getRun } from './runs';
 import { payslipLayout } from './service';
@@ -78,5 +79,53 @@ exportsRouter.get(
     const slips = await Payslip.find({ run: run._id }).sort({ 'person.code': 1 }).lean();
     await audit({ actor: req.user!.id, action: 'payroll.export_report', entity: 'PayrollRun', entityId: run._id, meta: { month: run.month, type, status: run.status } });
     send(res, await reportSheet(type, slips as SlipRecord[], run.month), XLSX, `${type}-${run.month}.xlsx`);
+  }),
+);
+
+/** Every payslip in a run as one PDF (one page each) for printing or emailing in bulk. */
+exportsRouter.get(
+  '/runs/:id/payslips.pdf',
+  view,
+  idParam,
+  ah(async (req, res) => {
+    const run = await getRun(req.params.id);
+    const slips = await Payslip.find({ run: run._id }).sort({ 'person.code': 1 }).lean();
+    if (!slips.length) throw conflict('Calculate the run first; there are no payslips yet');
+    await audit({ actor: req.user!.id, action: 'payroll.export_payslips', entity: 'PayrollRun', entityId: run._id, meta: { month: run.month, count: slips.length, status: run.status } });
+    send(res, await payslipsPdf(slips as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslips-${run.month}.pdf`);
+  }),
+);
+
+// ----- Bulk salary entry through Excel -----
+const manage = requirePermission(PERMISSIONS.PAYROLL_MANAGE);
+
+exportsRouter.get(
+  '/salary-template',
+  manage,
+  ah(async (req, res) => {
+    await audit({ actor: req.user!.id, action: 'payroll.read', entity: 'SalaryStructure', meta: { template: true } });
+    send(res, await salaryTemplate(), XLSX, 'salary-template.xlsx');
+  }),
+);
+
+/** ?apply=1 saves; without it the file is only checked. The body is the raw .xlsx file. */
+exportsRouter.post(
+  '/salary-import',
+  manage,
+  express.raw({ type: [XLSX, 'application/octet-stream'], limit: '5mb' }),
+  ah(async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) throw badRequest('Send the Excel file as the request body');
+    let rows;
+    try {
+      rows = await checkRows(await parseSalarySheet(req.body));
+    } catch (e) {
+      throw badRequest((e as Error).message);
+    }
+    const errors = rows.filter((r) => r.errors.length).length;
+    if (req.query.apply === '1') {
+      const { applied } = await applySalarySheet(rows, req.user!.id);
+      return res.json({ applied, errors, rows });
+    }
+    res.json({ applied: 0, errors, rows });
   }),
 );

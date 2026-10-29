@@ -254,6 +254,9 @@ export function PayrollRunPage() {
         <Card className="mt-4">
           <CardContent className="flex flex-wrap items-center gap-2 pt-4">
             <span className="mr-2 text-sm font-medium">Downloads</span>
+            <Button size="sm" variant="outline" onClick={() => downloadFile(`/payroll/runs/${run._id}/payslips.pdf`, `payslips-${run.month}.pdf`)}>
+              <Download /> All payslips (PDF)
+            </Button>
             {run.status === 'approved' && (
               <Button
                 size="sm"
