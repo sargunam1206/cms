@@ -6,6 +6,7 @@ import { AttendanceDay } from '../modules/attendance/model';
 import { Employee } from '../modules/employees/model';
 import { LeaveType } from '../modules/leave/model';
 import { Loan } from '../modules/payroll/model';
+import { fillRows } from '../modules/payroll/service';
 import { app, connectTestDb, createPerson, dropTestDb, seedRoles } from './helpers';
 
 let roles: Awaited<ReturnType<typeof seedRoles>>;
@@ -52,6 +53,16 @@ describe('payslip PDF, bank file and statutory reports', () => {
 
     const detail = (await request(app).get(`/api/payroll/runs/${run._id}`).set(admin.auth)).body;
     const slipId = detail.payslips.find((p: { person: { code: string } }) => p.person.code === emp.employee.code)._id;
+
+    // The payslip always lists the standard rows, even when an amount is zero
+    const full = (await request(app).get(`/api/payroll/payslips/${slipId}`).set(admin.auth)).body;
+    expect(full.layout.deductions.map((d: { code: string }) => d.code)).toEqual(expect.arrayContaining(['PF', 'ESI', 'PT', 'TDS']));
+    expect(full.layout.earnings.map((d: { code: string }) => d.code)).toContain('BASIC');
+    expect(fillRows([{ code: 'BASIC', name: 'Basic', amount: 5 }, { code: 'BONUS', name: 'Bonus', amount: 9 }], [{ code: 'BASIC', name: 'Basic' }, { code: 'HRA', name: 'HRA' }])).toEqual([
+      { code: 'BASIC', name: 'Basic', amount: 5 },
+      { code: 'HRA', name: 'HRA', amount: 0 },
+      { code: 'BONUS', name: 'Bonus', amount: 9 },
+    ]);
 
     // PDF
     const r1 = await get(`/api/payroll/payslips/${slipId}/pdf`, admin.auth).expect(200);

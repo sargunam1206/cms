@@ -18,6 +18,14 @@ export interface PayslipData {
   totalDeductions: number;
   net: number;
   warnings: string[];
+  layout?: { earnings: { code: string; name: string }[]; deductions: { code: string; name: string }[] };
+}
+
+/** Standard rows always appear; ones with no amount are shown blank. */
+function rows(lines: PayLineResult[], layout?: { code: string; name: string }[]): PayLineResult[] {
+  if (!layout) return lines;
+  const known = new Set(layout.map((l) => l.code));
+  return [...layout.map((l) => lines.find((x) => x.code === l.code) ?? { code: l.code, name: l.name, amount: 0 }), ...lines.filter((x) => !known.has(x.code))];
 }
 
 const mask = (v?: string) => (v ? `${'•'.repeat(Math.max(0, v.length - 4))}${v.slice(-4)}` : '—');
@@ -42,8 +50,8 @@ export function PayslipDialog({ slip, onClose, own }: { slip: PayslipData | null
               p={{
                 month: slip.month,
                 employee: { name: slip.person.name, code: slip.person.code },
-                earnings: slip.earnings,
-                deductions: slip.deductions,
+                earnings: rows(slip.earnings, slip.layout?.earnings),
+                deductions: rows(slip.deductions, slip.layout?.deductions),
                 employerContributions: slip.employerContributions,
                 gross: slip.gross,
                 totalDeductions: slip.totalDeductions,

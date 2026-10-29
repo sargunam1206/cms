@@ -41,7 +41,7 @@ export const requirePermission =
   (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) return next(unauthorized());
     if (perms.some((p) => req.user!.permissions.has(p))) return next();
-    next(forbidden());
+    next(forbidden(`Not allowed: your role needs the "${perms.join('" or "')}" permission`));
   };
 
 export const hasPermission = (req: Request, p: Permission) => !!req.user?.permissions.has(p);

@@ -10,6 +10,7 @@ import { Employee } from '../employees/model';
 import { setSetting } from '../settings/service';
 import { Loan, OneTimeItem, Payslip, PayrollRun } from './model';
 import { toPaise } from './money';
+import { payslipLayout } from './service';
 import { WORKFLOW_KEY, approveRun, assertMonthOpenForAdjustments, computeRun, createRun, deleteRun, getRun, getWorkflow, rejectRun, reopenRun, submitRun } from './runs';
 
 export const runsRouter = Router();
@@ -195,7 +196,7 @@ runsRouter.get(
     const slip = await Payslip.findById(req.params.id).lean();
     if (!slip) throw notFound('Payslip');
     await logRead(req, 'Payslip', slip._id, { employee: slip.employee, month: slip.month });
-    res.json(slip);
+    res.json({ ...slip, layout: await payslipLayout() });
   }),
 );
 
@@ -208,6 +209,7 @@ runsRouter.get(
     const approved = (await PayrollRun.find({ status: 'approved' }).select('_id').lean()).map((r) => r._id);
     const slips = await Payslip.find({ employee: empId, run: { $in: approved } }).sort({ month: -1 }).select('-inputs').lean();
     await audit({ actor: req.user!.id, action: 'payroll.read_own', entity: 'Payslip', meta: { count: slips.length } });
-    res.json(slips);
+    const layout = await payslipLayout();
+    res.json(slips.map((s) => ({ ...s, layout })));
   }),
 );

@@ -10,6 +10,7 @@ import { audit } from '../audit/model';
 import { REPORT_TYPES, bankSheet, payslipPdf, reportSheet, type SlipRecord } from './documents';
 import { Payslip, PayrollRun } from './model';
 import { getRun } from './runs';
+import { payslipLayout } from './service';
 
 export const exportsRouter = Router();
 const view = requirePermission(PERMISSIONS.PAYROLL_VIEW, PERMISSIONS.PAYROLL_MANAGE);
@@ -32,7 +33,7 @@ exportsRouter.get(
     const slip = await Payslip.findById(req.params.id).lean();
     if (!slip) throw notFound('Payslip');
     await audit({ actor: req.user!.id, action: 'payroll.read', entity: 'Payslip', entityId: slip._id, meta: { employee: slip.employee, month: slip.month, pdf: true } });
-    send(res, await payslipPdf(slip as never, env.COMPANY_NAME), 'application/pdf', `payslip-${slip.person?.code}-${slip.month}.pdf`);
+    send(res, await payslipPdf(slip as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslip-${slip.person?.code}-${slip.month}.pdf`);
   }),
 );
 
@@ -47,7 +48,7 @@ exportsRouter.get(
     const run = slip && (await PayrollRun.findById(slip.run).select('status').lean());
     if (!slip || run?.status !== 'approved') throw notFound('Payslip');
     await audit({ actor: req.user!.id, action: 'payroll.read_own', entity: 'Payslip', entityId: slip._id, meta: { pdf: true } });
-    send(res, await payslipPdf(slip as never, env.COMPANY_NAME), 'application/pdf', `payslip-${slip.month}.pdf`);
+    send(res, await payslipPdf(slip as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslip-${slip.month}.pdf`);
   }),
 );
 

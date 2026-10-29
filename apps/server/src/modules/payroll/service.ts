@@ -126,3 +126,34 @@ export async function previewPayslip(
     );
   return { ...result, employee: { name: emp.name, code: emp.code } };
 }
+
+export interface LayoutRow {
+  code: string;
+  name: string;
+}
+
+/**
+ * The rows every payslip shows, in order, even when the amount is zero (printed blank).
+ * Earnings and custom deductions come from the component master; PF, ESI, PT and TDS are always listed.
+ */
+export async function payslipLayout(): Promise<{ earnings: LayoutRow[]; deductions: LayoutRow[] }> {
+  const comps = await SalaryComponent.find({ active: true }).sort({ order: 1, code: 1 }).lean();
+  const pick = (kind: string) => comps.filter((c) => c.kind === kind).map((c) => ({ code: c.code, name: c.name }));
+  return {
+    earnings: pick('earning'),
+    deductions: [
+      ...pick('deduction'),
+      { code: 'PF', name: 'Provident Fund' },
+      { code: 'ESI', name: 'ESI' },
+      { code: 'PT', name: 'Professional Tax' },
+      { code: 'TDS', name: 'Income Tax (TDS)' },
+    ],
+  };
+}
+
+/** Layout rows first (amount 0 when absent), then any other lines such as one-time items or loan EMIs. */
+export function fillRows<T extends { code?: string | null; name?: string | null; amount?: number | null }>(lines: T[], layout: LayoutRow[]) {
+  const rows = layout.map((l) => ({ code: l.code, name: l.name, amount: lines.find((x) => x.code === l.code)?.amount ?? 0 }));
+  const known = new Set(layout.map((l) => l.code));
+  return [...rows, ...lines.filter((x) => !known.has(x.code ?? '')).map((x) => ({ code: x.code ?? '', name: x.name ?? '', amount: x.amount ?? 0 }))];
+}
