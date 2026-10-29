@@ -75,7 +75,7 @@ export function payslipPdf(slip: SlipDoc, company = 'Company', layout?: { earnin
       doc.font('Helvetica').fontSize(9);
       for (const r of rows) {
         doc.text(r.name ?? r.code ?? '', x, ty, { width: 170 });
-        doc.text(r.amount ? money(r.amount) : '', x + 170, ty, { width: 80, align: 'right' });
+        doc.text(money(r.amount), x + 170, ty, { width: 80, align: 'right' });
         ty += 14;
       }
       doc.moveTo(x, ty).lineTo(x + 250, ty).stroke();
@@ -83,7 +83,7 @@ export function payslipPdf(slip: SlipDoc, company = 'Company', layout?: { earnin
       doc.text(money(total), x + 170, ty + 4, { width: 80, align: 'right' });
       return ty + 20;
     };
-    // Standard rows are always printed; a zero amount is left blank
+    // Standard rows are always printed, with 0.00 where there is no amount
     const earnRows = layout ? fillRows(slip.earnings, layout.earnings) : slip.earnings;
     const dedRows = layout ? fillRows(slip.deductions, layout.deductions) : slip.deductions;
     const y1 = table('Earnings (Rs.)', earnRows, slip.gross, L);

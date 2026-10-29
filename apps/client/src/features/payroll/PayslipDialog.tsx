@@ -21,7 +21,7 @@ export interface PayslipData {
   layout?: { earnings: { code: string; name: string }[]; deductions: { code: string; name: string }[] };
 }
 
-/** Standard rows always appear; ones with no amount are shown blank. */
+/** Standard rows always appear; ones with no amount show ₹0.00. */
 function rows(lines: PayLineResult[], layout?: { code: string; name: string }[]): PayLineResult[] {
   if (!layout) return lines;
   const known = new Set(layout.map((l) => l.code));

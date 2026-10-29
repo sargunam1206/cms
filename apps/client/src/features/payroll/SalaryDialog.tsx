@@ -126,7 +126,7 @@ export function PreviewTable({ p }: { p: Preview }) {
             {r.name}
             {r.note && <span className="ml-1 text-xs text-muted-foreground">({r.note})</span>}
           </span>
-          <span className="tabular-nums">{r.amount ? inr(r.amount) : ''}</span>
+          <span className="tabular-nums">{inr(r.amount)}</span>
         </div>
       ))}
       {total !== undefined && (
