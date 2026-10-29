@@ -23,6 +23,7 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mathjs": "^15.2.0",
     "mongoose": "^8.8.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^10.3.0",
