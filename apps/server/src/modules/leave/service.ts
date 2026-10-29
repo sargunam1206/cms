@@ -46,11 +46,11 @@ async function balanceFor(employee: { _id: Id; dateOfJoining: string }, type: Le
   return { leaveType: { _id: type._id, code: type.code, name: type.name, paid: type.paid }, year, ...parts, available: availableBalance(parts) };
 }
 
-export async function getBalances(employeeId: Id | string, year: number) {
+export async function getBalances(employeeId: Id | string, year: number, asOf?: string) {
   const emp = await Employee.findById(employeeId).select('dateOfJoining').lean();
   if (!emp) throw notFound('Employee');
   const types = await LeaveType.find({ active: true, paid: true }).sort({ code: 1 }).lean();
-  return Promise.all(types.map((t) => balanceFor(emp, t as LeaveTypeDoc, year)));
+  return Promise.all(types.map((t) => balanceFor(emp, t as LeaveTypeDoc, year, asOf)));
 }
 
 async function assertEnoughBalance(employeeId: Id, type: LeaveTypeDoc, year: number, days: number, excludeId?: Id) {

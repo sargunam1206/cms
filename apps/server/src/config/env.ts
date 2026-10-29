@@ -16,6 +16,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().default('CMS <no-reply@company.local>'),
+  COMPANY_NAME: z.string().default('Company'),
   // Nightly JSON backup of the database; unset to disable
   BACKUP_DIR: z.string().optional(),
   BACKUP_KEEP: z.coerce.number().default(14),

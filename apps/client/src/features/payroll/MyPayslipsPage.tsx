@@ -46,7 +46,7 @@ export function MyPayslipsPage() {
           </Table>
         </CardContent>
       </Card>
-      <PayslipDialog slip={open} onClose={() => setOpen(null)} />
+      <PayslipDialog own slip={open} onClose={() => setOpen(null)} />
     </>
   );
 }

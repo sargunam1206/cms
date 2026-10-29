@@ -1,4 +1,7 @@
 import dayjs from 'dayjs';
+import { Download } from 'lucide-react';
+import { downloadFile } from '@/lib/download';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PreviewTable } from './SalaryDialog';
 import type { PayLineResult } from './types';
@@ -19,7 +22,8 @@ export interface PayslipData {
 
 const mask = (v?: string) => (v ? `${'•'.repeat(Math.max(0, v.length - 4))}${v.slice(-4)}` : '—');
 
-export function PayslipDialog({ slip, onClose }: { slip: PayslipData | null; onClose: () => void }) {
+/** `own` fetches the PDF through the employee's own route; otherwise the payroll-staff route. */
+export function PayslipDialog({ slip, onClose, own }: { slip: PayslipData | null; onClose: () => void; own?: boolean }) {
   return (
     <Dialog open={!!slip} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -49,6 +53,9 @@ export function PayslipDialog({ slip, onClose }: { slip: PayslipData | null; onC
                 warnings: slip.warnings,
               }}
             />
+            <Button variant="outline" size="sm" className="w-fit" onClick={() => downloadFile(own ? `/payroll/my/payslips/${slip._id}/pdf` : `/payroll/payslips/${slip._id}/pdf`, `payslip-${slip.month}.pdf`)}>
+              <Download /> Download PDF
+            </Button>
             <p className="text-xs text-muted-foreground">
               Loss of pay days: {slip.attendance.lopDays} · PAN {mask(slip.person.pan)} · UAN {mask(slip.person.uan)} · Account {mask(slip.person.bank?.accountNumber)}
             </p>

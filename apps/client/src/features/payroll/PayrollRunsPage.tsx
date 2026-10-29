@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { downloadFile } from '@/lib/download';
 import { PERMISSIONS as P } from '@cms/shared';
 import { api } from '@/api/client';
 import { useGet, useSend } from '@/api/hooks';
@@ -247,6 +249,34 @@ export function PayrollRunPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {run.totals?.employees > 0 && (
+        <Card className="mt-4">
+          <CardContent className="flex flex-wrap items-center gap-2 pt-4">
+            <span className="mr-2 text-sm font-medium">Downloads</span>
+            {run.status === 'approved' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  const h = await downloadFile(`/payroll/runs/${run._id}/bank`, `bank-transfer-${run.month}.xlsx`);
+                  if (h && Number(h['x-missing-bank-details']) > 0) toast.warning(`${h['x-missing-bank-details']} employee(s) have no bank details; see the "Missing bank details" sheet`);
+                }}
+              >
+                <Download /> Bank transfer file
+              </Button>
+            )}
+            {(
+              [['salary-register', 'Salary register'], ['pf', 'PF'], ['esi', 'ESI'], ['pt', 'Professional tax'], ['tds', 'TDS']] as const
+            ).map(([t, label]) => (
+              <Button key={t} size="sm" variant="outline" onClick={() => downloadFile(`/payroll/runs/${run._id}/reports/${t}`, `${t}-${run.month}.xlsx`)}>
+                <Download /> {label}
+              </Button>
+            ))}
+            {run.status !== 'approved' && <span className="text-xs text-muted-foreground">Bank file unlocks after approval. Reports from a draft are for review only.</span>}
+          </CardContent>
+        </Card>
+      )}
 
       <details className="mt-4 text-sm">
         <summary className="cursor-pointer text-muted-foreground">History</summary>

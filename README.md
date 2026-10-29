@@ -7,7 +7,7 @@ MERN monorepo (React + Vite + TS + Tailwind/shadcn · Express + TS · MongoDB) b
 |---|---|---|
 | 0 | Foundation: auth, RBAC, audit log, settings | ✅ |
 | 1 | Users, roles, employee master, attendance, leave | ✅ |
-| 2 | Payroll: salary structure, payroll run, payslips, statutory reports | ⏳ next |
+| 2 | Payroll: salary structure, payroll run, payslips (PDF), bank file, PF/ESI/PT/TDS reports, full & final | ✅ done (statutory rates need CA sign-off) |
 | 3 | Projects, tasks, time logs, notifications | |
 | 4 | Estimation, timelines, estimated vs actual | |
 | 5 | Enquiry/CRM, innovation hub, dashboards | |
@@ -59,3 +59,10 @@ Copy the `backups` folder off the machine regularly; a backup on the same disk d
 **Before go-live.** Replace the JWT secrets, enable MongoDB authentication (`security.authorization` in mongod.cfg, then put the credentials in `MONGO_URI`), and set `NODE_ENV=production`.
 
 **Known accepted audit findings.** `zod` (large-collection DoS; request bodies are capped at 1 MB and array fields are length-limited), `react-router` (SSR/open-redirect issues; the app has no SSR and no user-supplied redirect targets) and `uuid` via `node-cron` (a bounds check on APIs the scheduler does not use). Fixing them needs major-version upgrades; revisit when upgrading.
+
+## Payroll notes
+
+- Setup order: Payroll Setup → components, a template, statutory rules → set each employee's salary (Employees → Salary) → Payroll Runs → New run for a finished month → Calculate → Submit → (Management) Approve → download the bank file and reports.
+- Amounts are stored as integer paise. All rates and slabs live in the database (Payroll Setup → Statutory) and are **placeholders until your CA verifies them**.
+- Set `COMPANY_NAME` in `apps/server/.env` to print your company name on payslip PDFs.
+- Full & final: set the employee's exit date first; settlement covers exit-month pay, encashable leave, optional gratuity estimate and loan recovery. Tax on the settlement is not calculated.

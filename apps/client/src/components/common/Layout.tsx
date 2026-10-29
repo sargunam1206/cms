@@ -20,6 +20,7 @@ import {
   Banknote,
   Receipt,
   ListPlus,
+  UserMinus,
   Plane,
 } from 'lucide-react';
 import { PERMISSIONS as P, type Permission } from '@cms/shared';
@@ -61,6 +62,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/profile-changes', label: 'Bank Changes', icon: Landmark, perms: [P.EMPLOYEES_MANAGE] },
       { to: '/payroll/runs', label: 'Payroll Runs', icon: Banknote, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/payroll/adjustments', label: 'Payroll Adjustments', icon: ListPlus, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
+      { to: '/payroll/fnf', label: 'Full & Final', icon: UserMinus, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/payroll/setup', label: 'Payroll Setup', icon: Wallet, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/users', label: 'Users & Roles', icon: Users, perms: [P.USERS_MANAGE, P.ROLES_MANAGE] },
       { to: '/settings', label: 'Settings', icon: Settings, perms: [P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE] },

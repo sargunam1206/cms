@@ -7,6 +7,8 @@ import { ah } from '../../utils/asyncHandler';
 import { conflict, notFound } from '../../utils/errors';
 import { todayStr } from '../../utils/time';
 import { audit } from '../audit/model';
+import { exportsRouter } from './exports-routes';
+import { fnfRouter } from './fnf-routes';
 import { runsRouter } from './runs-routes';
 import { Employee } from '../employees/model';
 import { setSetting } from '../settings/service';
@@ -148,4 +150,6 @@ payrollRouter.get(
   }),
 );
 
+payrollRouter.use(exportsRouter);
+payrollRouter.use(fnfRouter);
 payrollRouter.use(runsRouter);

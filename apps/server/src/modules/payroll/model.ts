@@ -154,3 +154,22 @@ const payslipSchema = new Schema(
 );
 payslipSchema.index({ run: 1, employee: 1 }, { unique: true });
 export const Payslip = model('Payslip', payslipSchema);
+
+// ---------- Full and final settlement ----------
+const fnfLine = new Schema({ code: String, name: String, kind: { type: String, enum: ['earning', 'deduction'] }, amount: Number, note: String }, { _id: false });
+const fnfSchema = new Schema(
+  {
+    employee: { type: Schema.Types.ObjectId, ref: 'Employee', required: true, unique: true },
+    lastWorkingDay: { type: String, required: true },
+    status: { type: String, enum: ['draft', 'finalized'], default: 'draft', index: true },
+    lines: { type: [fnfLine], default: [] },
+    total: { type: Number, default: 0 }, // paise; negative = employee owes the company
+    gratuity: { eligible: Boolean, years: Number, estimate: Number, included: Boolean },
+    warnings: [String],
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    finalizedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    finalizedAt: Date,
+  },
+  { timestamps: true },
+);
+export const FnFSettlement = model('FnFSettlement', fnfSchema);
