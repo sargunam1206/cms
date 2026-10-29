@@ -1,0 +1,20 @@
+{
+  "name": "cms",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @cms/server\" \"npm run dev -w @cms/client\"",
+    "seed": "npm run seed -w @cms/server",
+    "seed:demo": "npm run seed:demo -w @cms/server",
+    "test": "npm run test -w @cms/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  }
+}
