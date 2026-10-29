@@ -20,6 +20,10 @@ export const PERMISSIONS = {
   LEAVE_MANAGE: 'leave.manage',
 
   HOLIDAYS_MANAGE: 'holidays.manage',
+
+  PAYROLL_VIEW: 'payroll.view',
+  PAYROLL_MANAGE: 'payroll.manage',
+  PAYROLL_APPROVE: 'payroll.approve',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -48,8 +52,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     P.LEAVE_MANAGE,
     P.HOLIDAYS_MANAGE,
     P.SETTINGS_MANAGE,
+    P.PAYROLL_VIEW,
+    P.PAYROLL_MANAGE,
   ],
-  Management: [...SELF, P.EMPLOYEES_VIEW, P.ATTENDANCE_TEAM, P.ATTENDANCE_ALL, P.AUDIT_VIEW],
+  Management: [...SELF, P.EMPLOYEES_VIEW, P.ATTENDANCE_TEAM, P.ATTENDANCE_ALL, P.AUDIT_VIEW, P.PAYROLL_VIEW, P.PAYROLL_APPROVE],
   Manager: [...SELF, P.ATTENDANCE_TEAM, P.REGULARIZATION_APPROVE, P.LEAVE_APPROVE],
   Employee: SELF,
 };

@@ -8,6 +8,7 @@ import { useDebounced, useGet, useSend } from '@/api/hooks';
 import type { Employee, Paged } from '@/api/types';
 import { useAuth } from '@/lib/auth';
 import { fmtDate } from '@/lib/utils';
+import { SalaryDialog } from '@/features/payroll/SalaryDialog';
 import { PageHeader } from '@/components/common/page';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export function EmployeesPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('active');
   const [department, setDepartment] = useState('');
+  const [salaryFor, setSalaryFor] = useState<Employee | null>(null);
   const [page, setPage] = useState(1);
   const dq = useDebounced(q);
   const departments = useGet<string[]>(['employees', 'departments'], '/employees/departments');
@@ -100,6 +102,11 @@ export function EmployeesPage() {
                         <Link to={`/attendance/employee/${e._id}`}>Attendance</Link>
                       </Button>
                     )}
+                    {can(P.PAYROLL_VIEW, P.PAYROLL_MANAGE) && (
+                      <Button size="sm" variant="ghost" onClick={() => setSalaryFor(e)}>
+                        Salary
+                      </Button>
+                    )}
                     {can(P.EMPLOYEES_MANAGE) && (
                       <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>
                         Edit
@@ -125,6 +132,7 @@ export function EmployeesPage() {
           </Button>
         </div>
       )}
+      <SalaryDialog employee={salaryFor} onClose={() => setSalaryFor(null)} />
       <EmployeeDialog editing={editing} onClose={() => setEditing(null)} />
     </>
   );

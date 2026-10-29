@@ -9,6 +9,7 @@ import { logger } from '../config/logger';
 import { hashPassword } from '../modules/auth/service';
 import { Employee } from '../modules/employees/model';
 import { LeaveType } from '../modules/leave/model';
+import { SalaryComponent, SalaryTemplate } from '../modules/payroll/model';
 import { Setting } from '../modules/settings/model';
 import { SETTING_KEYS } from '../modules/settings/service';
 import { Role, User } from '../modules/users/model';
@@ -19,6 +20,13 @@ const LEAVE_TYPES = [
   { code: 'EL', name: 'Earned Leave', paid: true, annualQuota: 15, accrual: 'monthly', carryForwardMax: 30, encashable: true },
   { code: 'LOP', name: 'Loss of Pay', paid: false, annualQuota: 0, accrual: 'yearly', carryForwardMax: 0, encashable: false },
 ];
+
+const PAY_COMPONENTS = [
+  { code: 'BASIC', name: 'Basic Salary', kind: 'earning', taxable: true, prorate: true, order: 10 },
+  { code: 'HRA', name: 'House Rent Allowance', kind: 'earning', taxable: true, prorate: true, order: 20 },
+  { code: 'SPECIAL', name: 'Special Allowance', kind: 'earning', taxable: true, prorate: true, order: 30 },
+  { code: 'CONV', name: 'Conveyance Allowance', kind: 'earning', taxable: true, prorate: true, order: 40 },
+] as const;
 
 const DEMO = [
   { code: 'HR001', name: 'Priya HR', role: 'HR', email: 'hr@company.local', department: 'HR', designation: 'HR Executive' },
@@ -58,6 +66,13 @@ async function main() {
   for (const lt of LEAVE_TYPES) {
     await LeaveType.updateOne({ code: lt.code }, { $setOnInsert: lt }, { upsert: true });
   }
+
+  for (const c of PAY_COMPONENTS) await SalaryComponent.updateOne({ code: c.code }, { $setOnInsert: { ...c, active: true } }, { upsert: true });
+  await SalaryTemplate.updateOne(
+    { name: 'Standard (Basic + HRA 40% + Special)' },
+    { $setOnInsert: { lines: [{ code: 'BASIC', fixedAmount: 20000 }, { code: 'HRA', formula: 'BASIC*0.4' }, { code: 'SPECIAL', fixedAmount: 5000 }] } },
+    { upsert: true },
+  );
 
   const adminEmp = await Employee.findOneAndUpdate(
     { code: 'ADM001' },

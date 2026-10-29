@@ -13,6 +13,7 @@ import { holidaysRouter } from './modules/holidays/routes';
 import { auditRouter } from './modules/audit/routes';
 import { attendanceRouter, regularizationRouter } from './modules/attendance/routes';
 import { leaveRouter } from './modules/leave/routes';
+import { payrollRouter } from './modules/payroll/routes';
 import { profileRouter } from './modules/profile/routes';
 import { dashboardRouter } from './modules/dashboard/routes';
 
@@ -39,6 +40,7 @@ export function createApp() {
   api.use('/regularizations', regularizationRouter);
   api.use('/leave', leaveRouter);
   api.use('/profile', profileRouter);
+  api.use('/payroll', payrollRouter);
   api.use('/dashboard', dashboardRouter);
   app.use('/api', api);
 

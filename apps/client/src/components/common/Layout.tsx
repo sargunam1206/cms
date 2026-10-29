@@ -16,6 +16,7 @@ import {
   KeyRound,
   UserCircle,
   Landmark,
+  Wallet,
   Plane,
 } from 'lucide-react';
 import { PERMISSIONS as P, type Permission } from '@cms/shared';
@@ -54,6 +55,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: '/employees', label: 'Employees', icon: Building2, perms: [P.EMPLOYEES_VIEW] },
       { to: '/profile-changes', label: 'Bank Changes', icon: Landmark, perms: [P.EMPLOYEES_MANAGE] },
+      { to: '/payroll/setup', label: 'Payroll Setup', icon: Wallet, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/users', label: 'Users & Roles', icon: Users, perms: [P.USERS_MANAGE, P.ROLES_MANAGE] },
       { to: '/settings', label: 'Settings', icon: Settings, perms: [P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE] },
       { to: '/audit', label: 'Audit Log', icon: History, perms: [P.AUDIT_VIEW] },

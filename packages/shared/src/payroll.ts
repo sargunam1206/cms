@@ -99,3 +99,29 @@ export const salaryComponentSchema = z
     message: 'Provide either a fixed amount or a formula',
   });
 export type SalaryComponentInput = z.infer<typeof salaryComponentSchema>;
+
+// ---------- Templates and employee salary structures ----------
+export const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
+
+/** One component's value inside a template or a structure. */
+export const structureLineSchema = z
+  .object({
+    code: z.string().regex(COMPONENT_CODE),
+    fixedAmount: z.number().min(0).max(100_000_000).optional(),
+    formula: z.string().max(200).optional(),
+  })
+  .refine((l) => (l.fixedAmount === undefined) !== (l.formula === undefined || l.formula === ''), {
+    message: 'Each line needs either a fixed amount or a formula',
+  });
+
+export const salaryTemplateSchema = z.object({
+  name: z.string().min(2).max(60),
+  lines: z.array(structureLineSchema).min(1).max(40),
+});
+
+export const salaryStructureSchema = z.object({
+  effectiveFrom: dateOnly,
+  template: z.string().regex(/^[a-f\d]{24}$/i).optional(), // template this was started from (informational)
+  lines: z.array(structureLineSchema).min(1).max(40),
+});
+export type SalaryStructureInput = z.infer<typeof salaryStructureSchema>;

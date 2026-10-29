@@ -53,3 +53,6 @@ export const dayOfWeek = (date: string) => dayjs(date).day();
 
 /** 1-based occurrence of this weekday within its month (e.g. 2 for the 2nd Saturday). */
 export const weekdayOccurrence = (date: string) => Math.ceil(dayjs(date).date() / 7);
+
+/** Last calendar day (YYYY-MM-DD) of a YYYY-MM month. */
+export const lastDayOfMonth = (month: string) => dayjs(`${month}-01`).endOf('month').format('YYYY-MM-DD');
