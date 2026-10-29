@@ -7,6 +7,7 @@ import { ah } from '../../utils/asyncHandler';
 import { conflict, notFound } from '../../utils/errors';
 import { todayStr } from '../../utils/time';
 import { audit } from '../audit/model';
+import { runsRouter } from './runs-routes';
 import { Employee } from '../employees/model';
 import { setSetting } from '../settings/service';
 import { SalaryComponent, SalaryStructure, SalaryTemplate } from './model';
@@ -146,3 +147,5 @@ payrollRouter.get(
     res.json(await previewPayslip(req.params.employeeId, month));
   }),
 );
+
+payrollRouter.use(runsRouter);

@@ -30,8 +30,8 @@ export interface EngineInput {
   oneTime?: OneTimeItem[];
   /** Taxable income and TDS already booked this financial year (paise), for the TDS projection. */
   ytd?: { taxableIncome: number; tdsDeducted: number };
-  /** Gross of the current half-year so far (paise); when absent the month's gross x 6 is used for PT. */
-  halfYearGross?: number;
+  /** Gross already paid earlier in the current half-year (paise). When absent, this month's gross x 6 is used for PT. */
+  halfYearGrossBefore?: number;
 }
 
 export interface Line {
@@ -169,7 +169,7 @@ export function computePayroll(input: EngineInput): EngineResult {
 
   const monthNo = Number(input.month.slice(5, 7));
   if (st.pt.enabled && st.pt.deductionMonths.includes(monthNo) && gross > 0) {
-    const half = (input.halfYearGross ?? gross * 6) / 100;
+    const half = (input.halfYearGrossBefore !== undefined ? input.halfYearGrossBefore + gross : gross * 6) / 100;
     const pt = toPaise(ptHalfYearly(half, st.pt.slabs));
     if (pt > 0) deductions.push({ code: 'PT', name: 'Professional Tax', amount: pt });
   }

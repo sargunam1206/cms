@@ -25,6 +25,7 @@ export function PayrollSetupPage() {
           <TabsTrigger value="components">Components</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="statutory">Statutory</TabsTrigger>
+          <TabsTrigger value="approval">Approval</TabsTrigger>
         </TabsList>
         <TabsContent value="components">
           <ComponentsTab canEdit={canEdit} />
@@ -32,11 +33,33 @@ export function PayrollSetupPage() {
         <TabsContent value="templates">
           <TemplatesTab canEdit={canEdit} />
         </TabsContent>
+        <TabsContent value="approval">
+          <ApprovalTab canEdit={canEdit} />
+        </TabsContent>
         <TabsContent value="statutory">
           <StatutoryTab canEdit={canEdit} />
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+// ---------- Approval chain ----------
+function ApprovalTab({ canEdit }: { canEdit: boolean }) {
+  const { data } = useGet<{ managementApproval: boolean }>(['payroll', 'workflow'], '/payroll/workflow');
+  const save = useSend<boolean>('put', '/payroll/workflow', { invalidate: [['payroll']], success: 'Saved', body: (v) => ({ managementApproval: v }) });
+  return (
+    <Card>
+      <CardContent className="space-y-2 pt-5 text-sm">
+        <label className="flex items-center gap-2 font-medium">
+          <Checkbox checked={data?.managementApproval ?? true} disabled={!canEdit || save.isPending} onChange={(e) => save.mutate(e.target.checked)} />
+          Require Management approval after HR review
+        </label>
+        <p className="text-muted-foreground">
+          On: HR submits the run and a Management user (a different person) approves it. Off: HR's submission is the final approval. The approval is what locks the run, reduces loan balances and releases payslips to employees.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

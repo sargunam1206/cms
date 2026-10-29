@@ -6,6 +6,7 @@ import { audit } from '../audit/model';
 import { Employee } from '../employees/model';
 import { holidaySet } from '../holidays/model';
 import { getWorkCalendar } from '../settings/service';
+import { PayrollRun } from '../payroll/model';
 import { AttendanceDay, AttendanceLock, RegularizationRequest, type AttendanceDayDoc } from './model';
 import { dayType, evaluateDay, summarizeMonth, type SummaryDay } from './rules';
 
@@ -34,6 +35,8 @@ export async function lockMonth(month: string, actor: Id, reason = 'Locked') {
 export async function unlockMonth(month: string, actor: Id, reason: string) {
   const lock = await AttendanceLock.findOne({ month });
   if (!lock?.locked) throw badRequest(`${month} is not locked`);
+  const run = await PayrollRun.findOne({ month }).select('status').lean();
+  if (run && run.status !== 'draft') throw locked(`Payroll for ${month} is ${run.status.replace('_', ' ')}; reopen the payroll run before unlocking attendance`);
   lock.locked = false;
   lock.history.push({ action: 'unlock', by: actor, at: now(), reason });
   await lock.save();

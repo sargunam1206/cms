@@ -8,6 +8,9 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/PasswordResetPages';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
+import { AdjustmentsPage } from '@/features/payroll/AdjustmentsPage';
+import { MyPayslipsPage } from '@/features/payroll/MyPayslipsPage';
+import { PayrollRunPage, PayrollRunsPage } from '@/features/payroll/PayrollRunsPage';
 import { PayrollSetupPage } from '@/features/payroll/PayrollSetupPage';
 import { BankChangesPage } from '@/features/profile/BankChangesPage';
 import { MyAttendancePage } from '@/features/attendance/MyAttendancePage';
@@ -58,6 +61,10 @@ export function AppRoutes() {
         <Route path="leave/admin" element={<Guard perms={[P.LEAVE_MANAGE]}><LeaveAdminPage /></Guard>} />
         <Route path="employees" element={<Guard perms={[P.EMPLOYEES_VIEW]}><EmployeesPage /></Guard>} />
         <Route path="profile-changes" element={<Guard perms={[P.EMPLOYEES_MANAGE]}><BankChangesPage /></Guard>} />
+        <Route path="my/payslips" element={<MyPayslipsPage />} />
+        <Route path="payroll/runs" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollRunsPage /></Guard>} />
+        <Route path="payroll/runs/:id" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollRunPage /></Guard>} />
+        <Route path="payroll/adjustments" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><AdjustmentsPage /></Guard>} />
         <Route path="payroll/setup" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollSetupPage /></Guard>} />
         <Route path="users" element={<Guard perms={[P.USERS_MANAGE, P.ROLES_MANAGE]}><UsersRolesPage /></Guard>} />
         <Route path="settings" element={<Guard perms={[P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE]}><SettingsPage /></Guard>} />

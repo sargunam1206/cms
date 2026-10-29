@@ -96,7 +96,8 @@ describe('payroll engine', () => {
     expect(line(computePayroll(base({ month: '2026-09' })).deductions, 'PT')).toBe(125_000); // 40,000 x 6 = 2.4L
     expect(line(computePayroll(base({ month: '2026-10' })).deductions, 'PT')).toBeUndefined();
     expect(line(computePayroll(base({ month: '2027-03' })).deductions, 'PT')).toBe(125_000);
-    expect(line(computePayroll(base({ month: '2026-09', halfYearGross: 2_500_000 })).deductions, 'PT')).toBe(13_500); // 25,000 -> 135
+    // Only this month paid in the half-year (40,000 in total) -> the 45,000 slab
+    expect(line(computePayroll(base({ month: '2026-09', halfYearGrossBefore: 0 })).deductions, 'PT')).toBe(31_500);
   });
 
   it('annual tax (new regime): nil under the rebate, slab maths above it', () => {
