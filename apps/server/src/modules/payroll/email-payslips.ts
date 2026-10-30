@@ -1,10 +1,10 @@
 import dayjs from 'dayjs';
-import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import { conflict } from '../../utils/errors';
 import { mailConfigured, sendMail } from '../../utils/mailer';
 import { now } from '../../utils/time';
 import { audit } from '../audit/model';
+import { companyForPdf } from '../company/service';
 import { Employee } from '../employees/model';
 import { User } from '../users/model';
 import { payslipPdf } from './documents';
@@ -29,6 +29,7 @@ export async function emailRunPayslips(runId: string, actor: unknown, resend = f
   if (!mailConfigured()) throw conflict('Email is not set up. Add the SMTP_* settings in apps/server/.env, then restart the server');
 
   const layout = await payslipLayout();
+  const company = await companyForPdf();
   const slips = await Payslip.find({ run: run._id }).sort({ 'person.code': 1 }).lean();
   const summary: EmailSummary = { sent: 0, alreadySent: 0, failed: [], noEmail: [] };
   const monthName = dayjs(`${run.month}-01`).format('MMMM YYYY');
@@ -47,11 +48,11 @@ export async function emailRunPayslips(runId: string, actor: unknown, resend = f
       continue;
     }
     try {
-      const pdf = await payslipPdf(s as never, env.COMPANY_NAME, layout);
+      const pdf = await payslipPdf(s as never, company, layout);
       const delivered = await sendMail(
         to,
         `Your payslip for ${monthName}`,
-        `Hello ${who.name},\n\nYour payslip for ${monthName} is attached.\nIf anything looks wrong, please contact HR.\n\n${env.COMPANY_NAME}`,
+        `Hello ${who.name},\n\nYour payslip for ${monthName} is attached.\nIf anything looks wrong, please contact HR.\n\n${company.name}`,
         [{ filename: `payslip-${run.month}.pdf`, content: pdf, contentType: 'application/pdf' }],
       );
       if (!delivered) throw new Error('Mail server not available');

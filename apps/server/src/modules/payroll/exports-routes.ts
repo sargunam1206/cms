@@ -1,12 +1,12 @@
 import express, { Router } from 'express';
 import { z } from 'zod';
 import { PERMISSIONS, objectId } from '@cms/shared';
-import { env } from '../../config/env';
 import { authenticate, requireEmployee, requirePermission } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { ah } from '../../utils/asyncHandler';
 import { badRequest, conflict, notFound } from '../../utils/errors';
 import { audit } from '../audit/model';
+import { companyForPdf } from '../company/service';
 import { REPORT_TYPES, bankSheet, payslipPdf, payslipsPdf, reportSheet, type SlipRecord } from './documents';
 import { applySalarySheet, checkRows, parseSalarySheet, salaryTemplate } from './salary-import';
 import { Payslip, PayrollRun } from './model';
@@ -34,7 +34,7 @@ exportsRouter.get(
     const slip = await Payslip.findById(req.params.id).lean();
     if (!slip) throw notFound('Payslip');
     await audit({ actor: req.user!.id, action: 'payroll.read', entity: 'Payslip', entityId: slip._id, meta: { employee: slip.employee, month: slip.month, pdf: true } });
-    send(res, await payslipPdf(slip as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslip-${slip.person?.code}-${slip.month}.pdf`);
+    send(res, await payslipPdf(slip as never, await companyForPdf(), await payslipLayout()), 'application/pdf', `payslip-${slip.person?.code}-${slip.month}.pdf`);
   }),
 );
 
@@ -49,7 +49,7 @@ exportsRouter.get(
     const run = slip && (await PayrollRun.findById(slip.run).select('status').lean());
     if (!slip || run?.status !== 'approved') throw notFound('Payslip');
     await audit({ actor: req.user!.id, action: 'payroll.read_own', entity: 'Payslip', entityId: slip._id, meta: { pdf: true } });
-    send(res, await payslipPdf(slip as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslip-${slip.month}.pdf`);
+    send(res, await payslipPdf(slip as never, await companyForPdf(), await payslipLayout()), 'application/pdf', `payslip-${slip.month}.pdf`);
   }),
 );
 
@@ -92,7 +92,7 @@ exportsRouter.get(
     const slips = await Payslip.find({ run: run._id }).sort({ 'person.code': 1 }).lean();
     if (!slips.length) throw conflict('Calculate the run first; there are no payslips yet');
     await audit({ actor: req.user!.id, action: 'payroll.export_payslips', entity: 'PayrollRun', entityId: run._id, meta: { month: run.month, count: slips.length, status: run.status } });
-    send(res, await payslipsPdf(slips as never, env.COMPANY_NAME, await payslipLayout()), 'application/pdf', `payslips-${run.month}.pdf`);
+    send(res, await payslipsPdf(slips as never, await companyForPdf(), await payslipLayout()), 'application/pdf', `payslips-${run.month}.pdf`);
   }),
 );
 

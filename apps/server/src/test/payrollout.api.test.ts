@@ -195,3 +195,61 @@ async function presentJuly(employee: unknown) {
   for (let d = dayjs('2026-07-01'); d.month() === 6; d = d.add(1, 'day')) if (d.day() !== 0) days.push({ employee, date: d.format('YYYY-MM-DD'), status: 'present', source: 'self' });
   await AttendanceDay.insertMany(days);
 }
+
+// 1x1 transparent PNG
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+
+describe('company profile on documents', () => {
+  it('validates and stores details, accepts only PNG/JPEG, and puts logo and signature into the payslip PDF', async () => {
+    const admin = await createPerson(roles.Admin);
+    const emp = await createPerson(roles.Employee);
+
+    // everyone can read; only settings managers can change
+    expect((await request(app).get('/api/company').set(emp.auth).expect(200)).body.hasLogo).toBe(false);
+    await request(app).put('/api/company').set(emp.auth).send({ name: 'Acme' }).expect(403);
+
+    const details = { name: 'Acme Industries Pvt Ltd', address: '12 Mount Road\nChennai 600002', phone: '044 1234 5678', email: 'hr@acme.in', gstin: '33abcde1234f1z5', pan: 'abcde1234f', signatoryName: 'R. Kumar', signatoryTitle: 'HR Manager' };
+    await request(app).put('/api/company').set(admin.auth).send({ ...details, gstin: '123' }).expect(400);
+    await request(app).put('/api/company').set(admin.auth).send({ ...details, pan: 'nope' }).expect(400);
+    await request(app).put('/api/company').set(admin.auth).send({ ...details, name: '' }).expect(400);
+    const saved = (await request(app).put('/api/company').set(admin.auth).send(details).expect(200)).body;
+    expect(saved).toMatchObject({ gstin: '33ABCDE1234F1Z5', pan: 'ABCDE1234F' }); // upper-cased
+
+    // images
+    const put = (img: string, body: Buffer, auth: Record<string, string> = admin.auth) => request(app).put(`/api/company/${img}`).set(auth).set('Content-Type', 'application/octet-stream').send(body);
+    await put('logo', Buffer.from('<svg></svg>')).expect(400); // not PNG/JPEG
+    await put('logo', PNG, emp.auth).expect(403);
+    await request(app).put('/api/company/other').set(admin.auth).send(PNG).expect(400);
+    await put('logo', Buffer.concat([PNG, Buffer.alloc(1_100_000)])).expect(413);
+
+    // a PDF without images, then with them
+    const withoutImages = await payslipPdfLength(admin, roles);
+    await put('logo', PNG).expect(204);
+    await put('signature', PNG).expect(204);
+    expect((await request(app).get('/api/company').set(emp.auth)).body).toMatchObject({ hasLogo: true, hasSignature: true });
+    const img = await request(app).get('/api/company/logo').set(emp.auth).buffer(true).parse(binary as never).expect(200);
+    expect(img.headers['content-type']).toBe('image/png');
+    const withImages = await payslipPdfLength(admin, roles);
+    expect(withImages).toBeGreaterThan(withoutImages);
+
+    await request(app).delete('/api/company/logo').set(admin.auth).expect(204);
+    await request(app).get('/api/company/logo').set(admin.auth).expect(404);
+  });
+});
+
+/** Runs a one-person payroll for a month and returns the size of that person's payslip PDF. */
+let monthCounter = 0;
+async function payslipPdfLength(admin: { auth: Record<string, string> }, r: Awaited<ReturnType<typeof seedRoles>>) {
+  const month = ['2026-02', '2026-03', '2026-04'][monthCounter++];
+  const p = await createPerson(r.Employee);
+  const days = [];
+  for (let d = dayjs(`${month}-01`); d.format('YYYY-MM') === month; d = d.add(1, 'day')) if (d.day() !== 0) days.push({ employee: p.employee._id, date: d.format('YYYY-MM-DD'), status: 'present', source: 'self' });
+  await AttendanceDay.insertMany(days);
+  await request(app).post(`/api/payroll/structures/${p.employee._id}`).set(admin.auth).send({ effectiveFrom: '2026-01-01', lines: [{ code: 'BASIC', fixedAmount: 20000 }] }).expect(201);
+  const run = (await request(app).post('/api/payroll/runs').set(admin.auth).send({ month }).expect(201)).body;
+  await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(admin.auth).expect(200);
+  const slips = (await request(app).get(`/api/payroll/runs/${run._id}`).set(admin.auth)).body.payslips;
+  const res = await get(`/api/payroll/payslips/${slips[0]._id}/pdf`, admin.auth).expect(200);
+  expect((res.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+  return (res.body as Buffer).length;
+}

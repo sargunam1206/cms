@@ -68,3 +68,5 @@ Copy the `backups` folder off the machine regularly; a backup on the same disk d
 - Full & final: set the employee's exit date first; settlement covers exit-month pay, encashable leave, optional gratuity estimate and loan recovery. Tax on the settlement is not calculated.
 
 **Emailing payslips.** On an approved run, HR can click **Email payslips** to send each employee their own PDF (employee email, falling back to their login email). Anyone already emailed is skipped, so a second click only retries failures. This needs `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` in `apps/server/.env` (restart the server after editing); without them the button explains that email is not set up.
+
+**Company details on documents.** Settings → Company holds the name, address, contacts, GSTIN, PAN, TAN, PF/ESI registration numbers, a logo and an authorised signature (PNG or JPEG, up to 1 MB each). They print in the header and signature block of every payslip PDF (single, bulk and emailed), and the name shows in the sidebar. They are stored in the database, so backups include them.

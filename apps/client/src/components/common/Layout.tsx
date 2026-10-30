@@ -24,6 +24,7 @@ import {
   Plane,
 } from 'lucide-react';
 import { PERMISSIONS as P, type Permission } from '@cms/shared';
+import { useGet } from '@/api/hooks';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -75,11 +76,12 @@ export function Layout() {
   const { user, can, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const company = useGet<{ name: string }>(['company'], '/company');
 
   const sidebar = (
     <nav className="flex h-full flex-col gap-4 p-3">
       <div className="flex items-center gap-2 px-2 py-2 font-semibold">
-        <ShieldCheck className="h-5 w-5 text-primary" /> CMS
+        <ShieldCheck className="h-5 w-5 shrink-0 text-primary" /> <span className="truncate">{company.data?.name || 'CMS'}</span>
       </div>
       {NAV.map(({ section, items }) => {
         const visible = items.filter((i) => !i.perms || can(...i.perms));

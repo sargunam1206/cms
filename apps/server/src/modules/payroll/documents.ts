@@ -35,13 +35,58 @@ const mask = (v?: string | null) => (v ? `${'X'.repeat(Math.max(0, v.length - 4)
 type Layout = { earnings: { code: string; name: string }[]; deductions: { code: string; name: string }[] };
 
 /** Draws one payslip on the current page. Bank account, PAN and UAN are masked on the printed copy. */
-function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: string, layout?: Layout) {
+export interface CompanyInfo {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  gstin?: string;
+  pan?: string;
+  tan?: string;
+  pfRegNo?: string;
+  esiRegNo?: string;
+  signatoryName?: string;
+  signatoryTitle?: string;
+  logo?: Buffer;
+  signature?: Buffer;
+}
+
+/** Draws an image if it can be read; a corrupt upload must never break payslip generation. */
+function safeImage(doc: PDFKit.PDFDocument, img: Buffer | undefined, x: number, y: number, fit: [number, number]) {
+  if (!img) return false;
+  try {
+    doc.image(img, x, y, { fit });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Letterhead: logo, company name, address, contacts and registration numbers. Returns the y below it. */
+function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: number) {
+  const top = 36;
+  const hasLogo = safeImage(doc, c.logo, L, top, [64, 54]);
+  const x = hasLogo ? L + 76 : L;
+  const w = W - (x - L);
+  doc.font('Helvetica-Bold').fontSize(15).fillColor('#000').text(c.name, x, top, { width: w });
+  doc.font('Helvetica').fontSize(8).fillColor('#555');
+  if (c.address) doc.text(c.address, x, doc.y + 1, { width: w });
+  const contact = [c.phone && `Ph: ${c.phone}`, c.email, c.website].filter(Boolean).join('   |   ');
+  if (contact) doc.text(contact, x, doc.y + 1, { width: w });
+  const regs = [c.gstin && `GSTIN: ${c.gstin}`, c.pan && `PAN: ${c.pan}`, c.tan && `TAN: ${c.tan}`, c.pfRegNo && `PF Reg: ${c.pfRegNo}`, c.esiRegNo && `ESI Reg: ${c.esiRegNo}`].filter(Boolean).join('   |   ');
+  if (regs) doc.text(regs, x, doc.y + 1, { width: w });
+  const bottom = Math.max(doc.y, hasLogo ? top + 54 : 0) + 8;
+  doc.moveTo(L, bottom).lineTo(L + W, bottom).lineWidth(0.8).strokeColor('#999').stroke().strokeColor('#000').lineWidth(1);
+  return bottom;
+}
+
+function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInfo, layout?: Layout) {
   const p = slip.person ?? {};
   const L = 40;
   const W = 515;
-  doc.font('Helvetica-Bold').fontSize(16).text(company, L, 40);
-  doc.font('Helvetica').fontSize(11).text(`Payslip for ${dayjs(`${slip.month}-01`).format('MMMM YYYY')}`, L, 62);
-  doc.moveTo(L, 84).lineTo(L + W, 84).stroke();
+  const headerBottom = drawHeader(doc, company, L, W);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(`Payslip for ${dayjs(`${slip.month}-01`).format('MMMM YYYY')}`, L, headerBottom + 10, { width: W, align: 'center' });
 
   const info: [string, string][] = [
     ['Employee', `${p.name ?? ''} (${p.code ?? ''})`],
@@ -53,7 +98,7 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: string, la
     ['Bank account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim()],
     ['Paid days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0} (loss of pay: ${slip.attendance?.lopDays ?? 0})`],
   ];
-  let y = 94;
+  let y = headerBottom + 36;
   info.forEach(([k, v], i) => {
     const x = L + (i % 2) * 260;
     if (i % 2 === 0 && i > 0) y += 16;
@@ -93,11 +138,21 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: string, la
   if (slip.employerContributions?.length) {
     doc.font('Helvetica').fontSize(8).fillColor('#666').text(`Employer contributions (not part of your pay): ${slip.employerContributions.map((e) => `${e.name} ${money(e.amount)}`).join('  |  ')}`, L, y, { width: W });
   }
-  doc.fillColor('#888').fontSize(8).text('This is a computer-generated payslip.', L, 780, { width: W, align: 'center' });
+
+  // Authorised signatory, bottom right
+  const sigY = 700;
+  if (company.signature || company.signatoryName) {
+    const sigX = L + W - 170;
+    safeImage(doc, company.signature, sigX, sigY, [150, 46]);
+    doc.moveTo(sigX, sigY + 52).lineTo(sigX + 160, sigY + 52).lineWidth(0.5).strokeColor('#666').stroke().strokeColor('#000').lineWidth(1);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000').text(company.signatoryName || 'Authorised signatory', sigX, sigY + 56, { width: 160 });
+    doc.font('Helvetica').fontSize(8).fillColor('#555').text(company.signatoryTitle || (company.signatoryName ? 'Authorised signatory' : ''), sigX, doc.y, { width: 160 });
+  }
+  doc.fillColor('#888').font('Helvetica').fontSize(8).text('This is a computer-generated payslip.', L, 790, { width: W, align: 'center' });
 }
 
 /** One A4 page per payslip, in a single PDF. */
-export function payslipsPdf(slips: SlipDoc[], company = 'Company', layout?: Layout): Promise<Buffer> {
+export function payslipsPdf(slips: SlipDoc[], company: CompanyInfo = { name: 'Company' }, layout?: Layout): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const chunks: Buffer[] = [];
@@ -112,7 +167,7 @@ export function payslipsPdf(slips: SlipDoc[], company = 'Company', layout?: Layo
   });
 }
 
-export const payslipPdf = (slip: SlipDoc, company = 'Company', layout?: Layout) => payslipsPdf([slip], company, layout);
+export const payslipPdf = (slip: SlipDoc, company: CompanyInfo = { name: 'Company' }, layout?: Layout) => payslipsPdf([slip], company, layout);
 
 // ---------- Excel ----------
 const bold = (row: ExcelJS.Row) => {

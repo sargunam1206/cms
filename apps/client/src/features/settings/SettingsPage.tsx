@@ -22,20 +22,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CompanyTab } from './CompanyTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function SettingsPage() {
   const { can } = useAuth();
-  const first = can(P.SETTINGS_MANAGE) ? 'calendar' : can(P.HOLIDAYS_MANAGE) ? 'holidays' : 'leave';
+  const first = can(P.SETTINGS_MANAGE) ? 'company' : can(P.HOLIDAYS_MANAGE) ? 'holidays' : 'leave';
   return (
     <>
       <PageHeader title="Settings" description="Rules here drive attendance and payroll; nothing is hard-coded." />
       <Tabs defaultValue={first}>
         <TabsList>
+          {can(P.SETTINGS_MANAGE) && <TabsTrigger value="company">Company</TabsTrigger>}
           {can(P.SETTINGS_MANAGE) && <TabsTrigger value="calendar">Work calendar</TabsTrigger>}
           {can(P.HOLIDAYS_MANAGE) && <TabsTrigger value="holidays">Holidays</TabsTrigger>}
           {can(P.LEAVE_MANAGE) && <TabsTrigger value="leave">Leave types</TabsTrigger>}
         </TabsList>
+        <TabsContent value="company">
+          <CompanyTab />
+        </TabsContent>
         <TabsContent value="calendar">
           <WorkCalendarForm />
         </TabsContent>
