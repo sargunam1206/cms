@@ -28,8 +28,6 @@ function rows(lines: PayLineResult[], layout?: { code: string; name: string }[])
   return [...layout.map((l) => lines.find((x) => x.code === l.code) ?? { code: l.code, name: l.name, amount: 0 }), ...lines.filter((x) => !known.has(x.code))];
 }
 
-const mask = (v?: string) => (v ? `${'•'.repeat(Math.max(0, v.length - 4))}${v.slice(-4)}` : '—');
-
 /** `own` fetches the PDF through the employee's own route; otherwise the payroll-staff route. */
 export function PayslipDialog({ slip, onClose, own }: { slip: PayslipData | null; onClose: () => void; own?: boolean }) {
   return (
@@ -47,6 +45,7 @@ export function PayslipDialog({ slip, onClose, own }: { slip: PayslipData | null
               </DialogDescription>
             </DialogHeader>
             <PreviewTable
+              hideDays
               p={{
                 month: slip.month,
                 employee: { name: slip.person.name, code: slip.person.code },
@@ -64,9 +63,6 @@ export function PayslipDialog({ slip, onClose, own }: { slip: PayslipData | null
             <Button variant="outline" size="sm" className="w-fit" onClick={() => downloadFile(own ? `/payroll/my/payslips/${slip._id}/pdf` : `/payroll/payslips/${slip._id}/pdf`, `payslip-${slip.month}.pdf`)}>
               <Download /> Download PDF
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Loss of pay days: {slip.attendance.lopDays} · PAN {mask(slip.person.pan)} · UAN {mask(slip.person.uan)} · Account {mask(slip.person.bank?.accountNumber)}
-            </p>
           </>
         )}
       </DialogContent>

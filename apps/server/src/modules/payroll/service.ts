@@ -157,3 +157,32 @@ export function fillRows<T extends { code?: string | null; name?: string | null;
   const known = new Set(layout.map((l) => l.code));
   return [...rows, ...lines.filter((x) => !known.has(x.code ?? '')).map((x) => ({ code: x.code ?? '', name: x.name ?? '', amount: x.amount ?? 0 }))];
 }
+
+interface PresentLine {
+  code?: string | null;
+  name?: string | null;
+  amount?: number | null;
+  fullAmount?: number | null;
+}
+
+const daysLabel = (d: number) => `${Number.isInteger(d) ? d : d.toFixed(1)} ${d === 1 ? 'day' : 'days'}`;
+
+/**
+ * How a payslip is shown: earnings at their full value and, when there was loss of pay, a deduction
+ * "LOP (2 days)" for the difference. Net pay is unchanged. Stored figures stay as earned, so PF, ESI,
+ * PT and TDS (calculated on pay after LOP) and their reports are unaffected.
+ * Payslips calculated before full amounts were recorded are shown as they were stored.
+ */
+export function presentPayslip<S extends { earnings: PresentLine[]; deductions: PresentLine[]; gross?: number | null; totalDeductions?: number | null; attendance?: { lopDays?: number | null } | null }>(slip: S) {
+  const lop = slip.earnings.reduce((sum, l) => sum + Math.max(0, (l.fullAmount ?? l.amount ?? 0) - (l.amount ?? 0)), 0);
+  const earnings = slip.earnings.map((l) => ({ ...l, amount: l.fullAmount ?? l.amount ?? 0 }));
+  if (lop <= 0) return { earnings, deductions: slip.deductions, gross: slip.gross ?? 0, totalDeductions: slip.totalDeductions ?? 0, lopAmount: 0 };
+  const days = slip.attendance?.lopDays ?? 0;
+  return {
+    earnings,
+    deductions: [...slip.deductions, { code: 'LOP', name: `LOP (${daysLabel(days)})`, amount: lop }],
+    gross: (slip.gross ?? 0) + lop,
+    totalDeductions: (slip.totalDeductions ?? 0) + lop,
+    lopAmount: lop,
+  };
+}

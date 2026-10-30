@@ -38,6 +38,8 @@ export interface Line {
   code: string;
   name: string;
   amount: number; // paise
+  /** Before loss-of-pay proration, when it reduced this line. Lets a payslip show full pay with LOP as a deduction. */
+  fullAmount?: number;
   note?: string;
 }
 
@@ -135,7 +137,7 @@ export function computePayroll(input: EngineInput): EngineResult {
     const full = monthly.get(c.code)!;
     if (c.kind === 'earning') {
       const amount = c.prorate ? roundPaise(full * ratio) : full;
-      if (amount > 0) earnings.push({ code: c.code, name: c.name, amount, note: c.prorate && ratio < 1 ? `${attendance.paidDays}/${attendance.totalDays} days` : undefined });
+      if (amount > 0) earnings.push({ code: c.code, name: c.name, amount, fullAmount: amount < full ? full : undefined, note: c.prorate && ratio < 1 ? `${attendance.paidDays}/${attendance.totalDays} days` : undefined });
       if (c.taxable) taxableGross += amount;
     } else if (full > 0) {
       deductions.push({ code: c.code, name: c.name, amount: full });

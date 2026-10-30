@@ -116,7 +116,7 @@ export function SalaryDialog({ employee, onClose }: { employee: EmployeeRef | nu
   );
 }
 
-export function PreviewTable({ p }: { p: Preview }) {
+export function PreviewTable({ p, hideDays }: { p: Preview; hideDays?: boolean }) {
   const col = (title: string, rows: Preview['earnings'], total?: number) => (
     <div>
       <h5 className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{title}</h5>
@@ -139,9 +139,11 @@ export function PreviewTable({ p }: { p: Preview }) {
   );
   return (
     <div className="space-y-3 rounded-md border p-3">
-      <p className="text-xs text-muted-foreground">
-        Paid days {p.paidDays} of {p.totalDays}
-      </p>
+      {!hideDays && (
+        <p className="text-xs text-muted-foreground">
+          Paid days {p.paidDays} of {p.totalDays}
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {col('Earnings', p.earnings, p.gross)}
         {col('Deductions', p.deductions, p.totalDeductions)}

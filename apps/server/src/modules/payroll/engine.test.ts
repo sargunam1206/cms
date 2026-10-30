@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_STATUTORY } from '@cms/shared';
 import { annualTax, computePayroll, PayrollError, ptHalfYearly, resolveOrder, type EngineComponent, type EngineInput } from './engine';
 import { evaluateFormula, formulaDependencies } from './formula';
+import { presentPayslip } from './service';
 
 const comp = (code: string, o: Partial<EngineComponent> = {}): EngineComponent => ({
   code,
@@ -62,6 +63,15 @@ describe('payroll engine', () => {
     const r = computePayroll(base({ attendance: { totalDays: 30, paidDays: 15 }, components: [comp('BASIC', { fixedAmount: 20000, order: 1 })] }));
     expect(line(r.earnings, 'BASIC')).toBe(1_000_000);
     expect(line(r.deductions, 'PF')).toBe(120_000); // 12% of 10,000
+  });
+
+  it('records the full amount of prorated earnings, so LOP can be shown as a deduction', () => {
+    const r = computePayroll(base({ attendance: { totalDays: 30, paidDays: 28 }, components: [comp('BASIC', { fixedAmount: 45000, order: 1 }), comp('CONV', { fixedAmount: 1600, prorate: false, order: 2 })] }));
+    const basic = r.earnings.find((l) => l.code === 'BASIC')!;
+    expect(basic.amount).toBe(4_200_000); // 45,000 x 28/30
+    expect(basic.fullAmount).toBe(4_500_000);
+    expect(r.earnings.find((l) => l.code === 'CONV')!.fullAmount).toBeUndefined();
+    expect(computePayroll(base()).earnings.every((l) => l.fullAmount === undefined)).toBe(true); // no LOP, nothing to record
   });
 
   it('non-prorated components are paid in full; PF can be uncapped', () => {
@@ -139,5 +149,31 @@ describe('payroll engine', () => {
   it('is deterministic and rejects bad input', () => {
     expect(computePayroll(base())).toEqual(computePayroll(base()));
     expect(() => computePayroll(base({ attendance: { totalDays: 0, paidDays: 0 } }))).toThrow(PayrollError);
+  });
+});
+
+describe('payslip presentation', () => {
+  it('shows full earnings and an LOP deduction; net pay is unchanged', () => {
+    const slip = {
+      earnings: [{ code: 'BASIC', name: 'Basic', amount: 4_200_000, fullAmount: 4_500_000 }, { code: 'CONV', name: 'Conv', amount: 160_000 }],
+      deductions: [{ code: 'PF', name: 'Provident Fund', amount: 180_000 }],
+      gross: 4_360_000,
+      totalDeductions: 180_000,
+      attendance: { lopDays: 2 },
+    };
+    const v = presentPayslip(slip);
+    expect(v.earnings.map((l) => l.amount)).toEqual([4_500_000, 160_000]);
+    expect(v.deductions.at(-1)).toEqual({ code: 'LOP', name: 'LOP (2 days)', amount: 300_000 });
+    expect(v.gross).toBe(4_660_000);
+    expect(v.totalDeductions).toBe(480_000);
+    expect(v.gross - v.totalDeductions).toBe(slip.gross - slip.totalDeductions); // same net
+    expect(presentPayslip({ ...slip, attendance: { lopDays: 0.5 } }).deductions.at(-1)?.name).toBe('LOP (0.5 days)');
+  });
+
+  it('adds no LOP line when there was none (or the payslip predates full amounts)', () => {
+    const noLop = { earnings: [{ code: 'BASIC', name: 'Basic', amount: 100 }], deductions: [{ code: 'PF', name: 'PF', amount: 10 }], gross: 100, totalDeductions: 10, attendance: { lopDays: 0 } };
+    expect(presentPayslip(noLop).deductions).toHaveLength(1);
+    expect(presentPayslip(noLop).gross).toBe(100);
+    expect(presentPayslip({ ...noLop, attendance: { lopDays: 3 } }).deductions).toHaveLength(1); // old payslip: no fullAmount recorded
   });
 });

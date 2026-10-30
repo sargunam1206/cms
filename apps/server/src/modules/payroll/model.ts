@@ -111,7 +111,7 @@ const runSchema = new Schema(
 );
 export const PayrollRun = model('PayrollRun', runSchema);
 
-const resultLine = new Schema({ code: String, name: String, amount: Number, note: String }, { _id: false });
+const resultLine = new Schema({ code: String, name: String, amount: Number, fullAmount: Number, note: String }, { _id: false });
 
 /** A payslip stores everything it was computed from, so it can be reproduced and defended later. */
 const payslipSchema = new Schema(

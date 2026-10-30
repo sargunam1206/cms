@@ -1,12 +1,13 @@
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
-import { fillRows } from './service';
+import { fillRows, presentPayslip } from './service';
 import dayjs from 'dayjs';
 
 interface Line {
   code?: string | null;
   name?: string | null;
   amount?: number | null;
+  fullAmount?: number | null;
   note?: string | null;
 }
 
@@ -112,9 +113,6 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInf
     [['Gender', cap(p.gender)], ['Branch Name', p.branch || '-']],
     [['Department', p.department || '-'], ['Designation', p.designation || '-']],
     [['Date of Joining', p.dateOfJoining ? dayjs(p.dateOfJoining).format('DD MMM YYYY') : '-'], ['ESI NO', p.esiNumber || '-']],
-    [['Paid Days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0}`], ['Loss of Pay Days', String(slip.attendance?.lopDays ?? 0)]],
-    [['PAN', mask(p.pan)], ['UAN', mask(p.uan)]],
-    [['Bank Account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim() || '-'], ['IFSC', p.bank?.ifsc || '-']],
   ];
   let y = headerBottom + 34;
   for (const pair of rows) {
@@ -145,10 +143,12 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInf
     return ty + 20;
   };
   // Standard rows are always printed, with 0.00 where there is no amount
-  const earnRows = layout ? fillRows(slip.earnings, layout.earnings) : slip.earnings;
-  const dedRows = layout ? fillRows(slip.deductions, layout.deductions) : slip.deductions;
-  const y1 = table('Earnings (Rs.)', earnRows, slip.gross, L);
-  const y2 = table('Deductions (Rs.)', dedRows, slip.totalDeductions, L + 265);
+  // Earnings at full value, with loss of pay (if any) listed as a deduction
+  const shown = presentPayslip(slip);
+  const earnRows = layout ? fillRows(shown.earnings, layout.earnings) : shown.earnings;
+  const dedRows = layout ? fillRows(shown.deductions, layout.deductions) : shown.deductions;
+  const y1 = table('Earnings (Rs.)', earnRows, shown.gross, L);
+  const y2 = table('Deductions (Rs.)', dedRows, shown.totalDeductions, L + 265);
   y = Math.max(y1, y2) + 14;
 
   doc.rect(L, y, W, 28).fill('#f1f5f9');

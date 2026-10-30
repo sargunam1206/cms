@@ -11,7 +11,7 @@ import { setSetting } from '../settings/service';
 import { emailRunPayslips } from './email-payslips';
 import { Loan, OneTimeItem, Payslip, PayrollRun } from './model';
 import { toPaise } from './money';
-import { payslipLayout } from './service';
+import { payslipLayout, presentPayslip } from './service';
 import { WORKFLOW_KEY, approveRun, assertMonthOpenForAdjustments, computeRun, createRun, deleteRun, getRun, getWorkflow, rejectRun, reopenRun, submitRun } from './runs';
 
 export const runsRouter = Router();
@@ -156,8 +156,9 @@ runsRouter.get(
   ah(async (req, res) => {
     const run = await getRun(req.params.id);
     await logRead(req, 'PayrollRun', run._id, { month: run.month });
-    const payslips = await Payslip.find({ run: run._id }).select('employee person attendance gross totalDeductions net warnings').sort({ 'person.code': 1 }).lean();
-    res.json({ run, payslips });
+    const payslips = await Payslip.find({ run: run._id }).select('employee person attendance earnings deductions gross totalDeductions net warnings').sort({ 'person.code': 1 }).lean();
+    // The list shows the same gross and deductions the payslip itself prints
+    res.json({ run, payslips: payslips.map(({ earnings, deductions, ...rest }) => { const v = presentPayslip({ earnings, deductions, gross: rest.gross, totalDeductions: rest.totalDeductions, attendance: rest.attendance }); return { ...rest, gross: v.gross, totalDeductions: v.totalDeductions }; }) });
   }),
 );
 
@@ -205,7 +206,7 @@ runsRouter.get(
     const slip = await Payslip.findById(req.params.id).lean();
     if (!slip) throw notFound('Payslip');
     await logRead(req, 'Payslip', slip._id, { employee: slip.employee, month: slip.month });
-    res.json({ ...slip, layout: await payslipLayout() });
+    res.json({ ...slip, ...presentPayslip(slip), layout: await payslipLayout() });
   }),
 );
 
@@ -219,6 +220,6 @@ runsRouter.get(
     const slips = await Payslip.find({ employee: empId, run: { $in: approved } }).sort({ month: -1 }).select('-inputs').lean();
     await audit({ actor: req.user!.id, action: 'payroll.read_own', entity: 'Payslip', meta: { count: slips.length } });
     const layout = await payslipLayout();
-    res.json(slips.map((s) => ({ ...s, layout })));
+    res.json(slips.map((s) => ({ ...s, ...presentPayslip(s), layout })));
   }),
 );
