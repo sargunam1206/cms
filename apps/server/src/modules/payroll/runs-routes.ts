@@ -8,6 +8,7 @@ import { badRequest, notFound } from '../../utils/errors';
 import { audit } from '../audit/model';
 import { Employee } from '../employees/model';
 import { setSetting } from '../settings/service';
+import { emailRunPayslips } from './email-payslips';
 import { Loan, OneTimeItem, Payslip, PayrollRun } from './model';
 import { toPaise } from './money';
 import { payslipLayout } from './service';
@@ -185,6 +186,14 @@ runsRouter.delete(
     await deleteRun(req.params.id, req.user!.id);
     res.status(204).end();
   }),
+);
+
+runsRouter.post(
+  '/runs/:id/email-payslips',
+  manage,
+  byId,
+  validate(z.object({ resend: z.boolean().default(false) })),
+  ah(async (req, res) => res.json(await emailRunPayslips(req.params.id, req.user!.id, req.body.resend))),
 );
 
 // ===== Payslips =====

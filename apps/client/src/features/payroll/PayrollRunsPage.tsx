@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Download, Plus } from 'lucide-react';
+import { Download, Mail, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadFile } from '@/lib/download';
 import { PERMISSIONS as P } from '@cms/shared';
@@ -137,6 +137,21 @@ export function PayrollRunPage() {
       setText('');
     },
   });
+  const email = useSend<boolean, { sent: number; alreadySent: number; failed: { name: string; code: string; reason: string }[]; noEmail: { name: string; code: string }[] }>(
+    'post',
+    `/payroll/runs/${id}/email-payslips`,
+    {
+      invalidate: [['payroll']],
+      body: (resend) => ({ resend }),
+      onSuccess: (r) => {
+        const parts = [`${r.sent} sent`];
+        if (r.alreadySent) parts.push(`${r.alreadySent} already sent earlier`);
+        if (r.noEmail.length) parts.push(`no email address: ${r.noEmail.map((n) => n.name).join(', ')}`);
+        if (r.failed.length) parts.push(`failed: ${r.failed.map((f) => `${f.name} (${f.reason})`).join(', ')}`);
+        (r.failed.length || r.noEmail.length ? toast.warning : toast.success)(parts.join(' · '), { duration: 10000 });
+      },
+    },
+  );
   const del = useSend<void>('delete', `/payroll/runs/${id}`, { ...inv, success: 'Run deleted', onSuccess: () => nav('/payroll/runs') });
 
   if (isLoading || !data) return <Spinner />;
@@ -276,6 +291,16 @@ export function PayrollRunPage() {
                 <Download /> {label}
               </Button>
             ))}
+            {manage && run.status === 'approved' && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={email.isPending}
+                onClick={() => confirm('Email each employee their own payslip PDF? Anyone already emailed is skipped.') && email.mutate(false)}
+              >
+                <Mail /> Email payslips
+              </Button>
+            )}
             {run.status !== 'approved' && <span className="text-xs text-muted-foreground">Bank file unlocks after approval. Reports from a draft are for review only.</span>}
           </CardContent>
         </Card>

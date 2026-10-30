@@ -148,6 +148,7 @@ const payslipSchema = new Schema(
     // Per-loan EMI taken in this payslip; balances are reduced only when the run is approved
     loans: { type: [{ loan: { type: Schema.Types.ObjectId, ref: 'Loan' }, amount: Number, _id: false }], default: [] },
     warnings: [String],
+    emailedAt: Date, // set when the payslip PDF has been emailed to the employee
     inputs: Schema.Types.Mixed, // components, statutory rules and year-to-date figures used
   },
   { timestamps: true },
