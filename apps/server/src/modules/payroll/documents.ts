@@ -72,13 +72,13 @@ function safeImage(doc: PDFKit.PDFDocument, img: Buffer | undefined, x: number, 
  */
 function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: number) {
   const top = 34;
-  const leftW = 190;
+  const leftW = 170;
   const rightX = L + leftW + 15;
   const rightW = W - leftW - 15;
 
   // Left column
-  const logoH = safeImage(doc, c.logo, L, top, [leftW, 72]);
-  let ly = top + (logoH ? logoH + 8 : 0);
+  const logoH = safeImage(doc, c.logo, L, top + 2, [leftW - 10, 62]);
+  let ly = top + (logoH ? logoH + 10 : 0);
   doc.font('Helvetica').fontSize(9).fillColor('#333');
   const left = [c.gstin && `GST : ${c.gstin}`, c.pan && `PAN : ${c.pan}`, c.tan && `TAN : ${c.tan}`, c.pfRegNo && `PF Reg : ${c.pfRegNo}`, c.esiRegNo && `ESI Reg : ${c.esiRegNo}`].filter(Boolean) as string[];
   for (const line of left) {
@@ -90,7 +90,7 @@ function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: numbe
   doc.font('Helvetica-Bold').fontSize(17).fillColor('#000').text(c.name, rightX, top, { width: rightW });
   doc.font('Helvetica').fontSize(9).fillColor('#333');
   if (c.address) doc.text(c.address, rightX, doc.y + 3, { width: rightW });
-  for (const line of [c.email && `Email : ${c.email}`, c.phone && `Phone : ${c.phone}`, c.website && `Web : ${c.website}`].filter(Boolean) as string[]) doc.text(line, rightX, doc.y + 1, { width: rightW });
+  for (const line of [c.email && `Email : ${c.email}`, c.website && `Web : ${c.website}`].filter(Boolean) as string[]) doc.text(line, rightX, doc.y + 1, { width: rightW });
   const ry = doc.y;
 
   const bottom = Math.max(ly, ry) + 8;

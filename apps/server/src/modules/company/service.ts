@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { companySchema, type CompanyImage, type CompanyProfile } from '@cms/shared';
 import { env } from '../../config/env';
 import { getSetting } from '../settings/service';
@@ -17,6 +18,19 @@ export function sniffImage(buf: Buffer): 'image/png' | 'image/jpeg' | null {
   if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
   return null;
+}
+
+/**
+ * Crops empty margins (transparent or plain-coloured borders) so a logo or signature sits flush with the text
+ * beside it on the page. If anything goes wrong the original image is used unchanged.
+ */
+export async function trimImage(buf: Buffer): Promise<Buffer> {
+  try {
+    const { data, info } = await sharp(buf).trim({ threshold: 12 }).toBuffer({ resolveWithObject: true });
+    return info.width >= 8 && info.height >= 8 ? data : buf;
+  } catch {
+    return buf;
+  }
 }
 
 /** Everything the PDF header and footer need. */

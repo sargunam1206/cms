@@ -8,7 +8,7 @@ import { badRequest, notFound } from '../../utils/errors';
 import { audit } from '../audit/model';
 import { setSetting } from '../settings/service';
 import { CompanyAsset } from './model';
-import { COMPANY_KEY, getCompany, hasImage, sniffImage } from './service';
+import { COMPANY_KEY, getCompany, hasImage, sniffImage, trimImage } from './service';
 
 export const companyRouter = Router();
 const edit = requirePermission(PERMISSIONS.SETTINGS_MANAGE);
@@ -60,8 +60,9 @@ companyRouter.put(
     if (!Buffer.isBuffer(req.body) || !req.body.length) throw badRequest('Send a PNG or JPEG image (up to 1 MB)');
     const type = sniffImage(req.body);
     if (!type) throw badRequest('Only PNG or JPEG images are supported');
-    await CompanyAsset.findOneAndUpdate({ key: req.params.image }, { key: req.params.image, contentType: type, data: req.body, updatedBy: req.user!.id }, { upsert: true });
-    await audit({ actor: req.user!.id, action: `company.${req.params.image}_set`, entity: 'Company', meta: { bytes: req.body.length, type } });
+    const data = await trimImage(req.body);
+    await CompanyAsset.findOneAndUpdate({ key: req.params.image }, { key: req.params.image, contentType: type, data, updatedBy: req.user!.id }, { upsert: true });
+    await audit({ actor: req.user!.id, action: `company.${req.params.image}_set`, entity: 'Company', meta: { bytes: req.body.length, storedBytes: data.length, type } });
     res.status(204).end();
   }),
 );
