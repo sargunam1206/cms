@@ -1,6 +1,6 @@
 import '../../config/istPlugin';
 import { Schema, model, type InferSchemaType, type Types } from 'mongoose';
-import { EMPLOYEE_STATUS, TAX_REGIMES } from '@cms/shared';
+import { EMPLOYEE_STATUS, GENDERS, TAX_REGIMES } from '@cms/shared';
 
 const employeeSchema = new Schema(
   {
@@ -13,6 +13,8 @@ const employeeSchema = new Schema(
     manager: { type: Schema.Types.ObjectId, ref: 'Employee', default: null, index: true },
     dateOfJoining: { type: String, required: true }, // YYYY-MM-DD
     dateOfBirth: String,
+    gender: { type: String, enum: GENDERS },
+    branch: String,
     pan: { type: String, uppercase: true },
     uan: String,
     esiNumber: String,

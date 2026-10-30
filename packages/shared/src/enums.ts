@@ -10,6 +10,8 @@ export type RequestStatus = (typeof REQUEST_STATUS)[number];
 export const REGULARIZATION_TYPES = ['missed-checkin', 'missed-checkout', 'on-duty'] as const;
 export type RegularizationType = (typeof REGULARIZATION_TYPES)[number];
 
+export const GENDERS = ['male', 'female', 'other'] as const;
+export type Gender = (typeof GENDERS)[number];
 export const EMPLOYEE_STATUS = ['active', 'notice', 'exited'] as const;
 export type EmployeeStatus = (typeof EMPLOYEE_STATUS)[number];
 

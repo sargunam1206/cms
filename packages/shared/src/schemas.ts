@@ -5,6 +5,7 @@ import {
   REGULARIZATION_TYPES,
   SATURDAY_RULES,
   TAX_REGIMES,
+  GENDERS,
 } from './enums';
 import { ALL_PERMISSIONS, type Permission } from './permissions';
 
@@ -62,6 +63,8 @@ export const employeeSchema = z.object({
   manager: objectId.nullable().optional().or(z.literal('')),
   dateOfJoining: dateStr,
   dateOfBirth: dateStr.optional().or(z.literal('')),
+  gender: z.enum(GENDERS).or(z.literal('')).nullish(),
+  branch: z.string().max(80).nullish(),
   pan: z.string().max(10).optional(),
   uan: z.string().max(12).optional(),
   esiNumber: z.string().max(17).optional(),

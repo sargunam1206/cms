@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Search, Upload } from 'lucide-react';
-import { EMPLOYEE_STATUS, PERMISSIONS as P, TAX_REGIMES, employeeSchema, type EmployeeInput } from '@cms/shared';
+import { EMPLOYEE_STATUS, GENDERS, PERMISSIONS as P, TAX_REGIMES, employeeSchema, type EmployeeInput } from '@cms/shared';
 import { useDebounced, useGet, useSend } from '@/api/hooks';
 import type { Employee, Paged } from '@/api/types';
 import { useAuth } from '@/lib/auth';
@@ -158,6 +158,8 @@ const blank: EmployeeInput = {
   manager: null,
   dateOfJoining: '',
   dateOfBirth: '',
+  gender: '',
+  branch: '',
   pan: '',
   uan: '',
   esiNumber: '',
@@ -215,6 +217,19 @@ function EmployeeDialog({ editing, onClose }: { editing: Employee | 'new' | null
             </Field>
             <Field label="Date of birth">
               <Input type="date" {...register('dateOfBirth')} />
+            </Field>
+            <Field label="Gender">
+              <Select {...register('gender')}>
+                <option value="">—</option>
+                {GENDERS.map((g) => (
+                  <option key={g} value={g}>
+                    {g[0].toUpperCase() + g.slice(1)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Branch">
+              <Input {...register('branch')} />
             </Field>
             <Field label="Department">
               <Input {...register('department')} />

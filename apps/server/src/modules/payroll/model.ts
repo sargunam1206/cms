@@ -125,6 +125,8 @@ const payslipSchema = new Schema(
       designation: String,
       department: String,
       dateOfJoining: String,
+      gender: String,
+      branch: String,
       pan: String,
       uan: String,
       esiNumber: String,

@@ -14,6 +14,7 @@ export interface SlipDoc {
   month: string;
   person?: {
     name?: string | null; code?: string | null; designation?: string | null; department?: string | null; dateOfJoining?: string | null;
+    gender?: string | null; branch?: string | null;
     pan?: string | null; uan?: string | null; esiNumber?: string | null;
     bank?: { accountNumber?: string | null; ifsc?: string | null; bankName?: string | null } | null;
   } | null;
@@ -52,31 +53,47 @@ export interface CompanyInfo {
   signature?: Buffer;
 }
 
-/** Draws an image if it can be read; a corrupt upload must never break payslip generation. */
+/** Draws an image scaled to fit the box; returns the height actually used (0 if it could not be read, so a corrupt upload never breaks a payslip). */
 function safeImage(doc: PDFKit.PDFDocument, img: Buffer | undefined, x: number, y: number, fit: [number, number]) {
-  if (!img) return false;
+  if (!img) return 0;
   try {
+    const { width, height } = (doc as unknown as { openImage(b: Buffer): { width: number; height: number } }).openImage(img);
+    const scale = Math.min(fit[0] / width, fit[1] / height);
     doc.image(img, x, y, { fit });
-    return true;
+    return height * scale;
   } catch {
-    return false;
+    return 0;
   }
 }
 
-/** Letterhead: logo, company name, address, contacts and registration numbers. Returns the y below it. */
+/**
+ * Letterhead in two columns. Left: logo, then GST and PAN. Right: company name, address and contacts.
+ * Returns the y below it.
+ */
 function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: number) {
-  const top = 36;
-  const hasLogo = safeImage(doc, c.logo, L, top, [64, 54]);
-  const x = hasLogo ? L + 76 : L;
-  const w = W - (x - L);
-  doc.font('Helvetica-Bold').fontSize(15).fillColor('#000').text(c.name, x, top, { width: w });
-  doc.font('Helvetica').fontSize(8).fillColor('#555');
-  if (c.address) doc.text(c.address, x, doc.y + 1, { width: w });
-  const contact = [c.phone && `Ph: ${c.phone}`, c.email, c.website].filter(Boolean).join('   |   ');
-  if (contact) doc.text(contact, x, doc.y + 1, { width: w });
-  const regs = [c.gstin && `GSTIN: ${c.gstin}`, c.pan && `PAN: ${c.pan}`, c.tan && `TAN: ${c.tan}`, c.pfRegNo && `PF Reg: ${c.pfRegNo}`, c.esiRegNo && `ESI Reg: ${c.esiRegNo}`].filter(Boolean).join('   |   ');
-  if (regs) doc.text(regs, x, doc.y + 1, { width: w });
-  const bottom = Math.max(doc.y, hasLogo ? top + 54 : 0) + 8;
+  const top = 34;
+  const leftW = 190;
+  const rightX = L + leftW + 15;
+  const rightW = W - leftW - 15;
+
+  // Left column
+  const logoH = safeImage(doc, c.logo, L, top, [leftW, 72]);
+  let ly = top + (logoH ? logoH + 8 : 0);
+  doc.font('Helvetica').fontSize(9).fillColor('#333');
+  const left = [c.gstin && `GST : ${c.gstin}`, c.pan && `PAN : ${c.pan}`, c.tan && `TAN : ${c.tan}`, c.pfRegNo && `PF Reg : ${c.pfRegNo}`, c.esiRegNo && `ESI Reg : ${c.esiRegNo}`].filter(Boolean) as string[];
+  for (const line of left) {
+    doc.text(line, L, ly, { width: leftW });
+    ly = doc.y + 1;
+  }
+
+  // Right column
+  doc.font('Helvetica-Bold').fontSize(17).fillColor('#000').text(c.name, rightX, top, { width: rightW });
+  doc.font('Helvetica').fontSize(9).fillColor('#333');
+  if (c.address) doc.text(c.address, rightX, doc.y + 3, { width: rightW });
+  for (const line of [c.email && `Email : ${c.email}`, c.phone && `Phone : ${c.phone}`, c.website && `Web : ${c.website}`].filter(Boolean) as string[]) doc.text(line, rightX, doc.y + 1, { width: rightW });
+  const ry = doc.y;
+
+  const bottom = Math.max(ly, ry) + 8;
   doc.moveTo(L, bottom).lineTo(L + W, bottom).lineWidth(0.8).strokeColor('#999').stroke().strokeColor('#000').lineWidth(1);
   return bottom;
 }
@@ -88,24 +105,28 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInf
   const headerBottom = drawHeader(doc, company, L, W);
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(`Payslip for ${dayjs(`${slip.month}-01`).format('MMMM YYYY')}`, L, headerBottom + 10, { width: W, align: 'center' });
 
-  const info: [string, string][] = [
-    ['Employee', `${p.name ?? ''} (${p.code ?? ''})`],
-    ['Designation', p.designation || '-'],
-    ['Department', p.department || '-'],
-    ['Date of joining', p.dateOfJoining ? dayjs(p.dateOfJoining).format('DD MMM YYYY') : '-'],
-    ['PAN', mask(p.pan)],
-    ['UAN', mask(p.uan)],
-    ['Bank account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim()],
-    ['Paid days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0} (loss of pay: ${slip.attendance?.lopDays ?? 0})`],
+  const cap = (v?: string | null) => (v ? v[0].toUpperCase() + v.slice(1) : '-');
+  // Two columns of "Label : value", colons aligned
+  const rows: [[string, string], [string, string]][] = [
+    [['Employee Code', p.code || '-'], ['Employee Name', p.name || '-']],
+    [['Gender', cap(p.gender)], ['Branch Name', p.branch || '-']],
+    [['Department', p.department || '-'], ['Designation', p.designation || '-']],
+    [['Date of Joining', p.dateOfJoining ? dayjs(p.dateOfJoining).format('DD MMM YYYY') : '-'], ['ESI NO', p.esiNumber || '-']],
+    [['Paid Days', `${slip.attendance?.paidDays ?? 0} of ${slip.attendance?.totalDays ?? 0}`], ['Loss of Pay Days', String(slip.attendance?.lopDays ?? 0)]],
+    [['PAN', mask(p.pan)], ['UAN', mask(p.uan)]],
+    [['Bank Account', `${p.bank?.bankName ?? ''} ${mask(p.bank?.accountNumber)}`.trim() || '-'], ['IFSC', p.bank?.ifsc || '-']],
   ];
-  let y = headerBottom + 36;
-  info.forEach(([k, v], i) => {
-    const x = L + (i % 2) * 260;
-    if (i % 2 === 0 && i > 0) y += 16;
-    doc.font('Helvetica').fontSize(9).fillColor('#666').text(k, x, y, { width: 90 });
-    doc.fillColor('#000').text(v, x + 90, y, { width: 165 });
-  });
-  y += 30;
+  let y = headerBottom + 34;
+  for (const pair of rows) {
+    pair.forEach(([label, value], col) => {
+      const x = L + col * 265;
+      doc.font('Helvetica').fontSize(9).fillColor('#555').text(label, x, y, { width: 88 });
+      doc.fillColor('#555').text(':', x + 88, y, { width: 8 });
+      doc.font('Helvetica-Bold').fillColor('#000').text(value, x + 100, y, { width: 160 });
+    });
+    y += 16;
+  }
+  y += 14;
 
   const table = (title: string, rows: Line[], total: number | null | undefined, x: number) => {
     let ty = y;

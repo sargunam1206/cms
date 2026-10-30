@@ -150,7 +150,7 @@ export async function computeRun(runId: string, actor: Id) {
       month,
       employee: emp._id,
       person: {
-        name: emp.name, code: emp.code, designation: emp.designation, department: emp.department, dateOfJoining: emp.dateOfJoining,
+        name: emp.name, code: emp.code, designation: emp.designation, department: emp.department, dateOfJoining: emp.dateOfJoining, gender: emp.gender, branch: emp.branch,
         pan: emp.pan, uan: emp.uan, esiNumber: emp.esiNumber, bank: emp.bank,
       },
       attendance: {

@@ -22,6 +22,8 @@ export interface Employee extends EmployeeRef {
   manager?: EmployeeRef | null;
   dateOfJoining: string;
   dateOfBirth?: string;
+  gender?: 'male' | 'female' | 'other' | '';
+  branch?: string;
   pan?: string;
   uan?: string;
   esiNumber?: string;
