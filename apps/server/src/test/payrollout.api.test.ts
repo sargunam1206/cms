@@ -224,13 +224,16 @@ describe('company profile on documents', () => {
 
     // a PDF without images, then with them
     const withoutImages = await payslipPdfLength(admin, roles);
+    expect(withoutImages.includes('/Subtype /Image')).toBe(false);
     await put('logo', PNG).expect(204);
     await put('signature', PNG).expect(204);
     expect((await request(app).get('/api/company').set(emp.auth)).body).toMatchObject({ hasLogo: true, hasSignature: true });
     const img = await request(app).get('/api/company/logo').set(emp.auth).buffer(true).parse(binary as never).expect(200);
     expect(img.headers['content-type']).toBe('image/png');
+    expect((img.body as Buffer).equals(PNG)).toBe(true); // the exact bytes come back
     const withImages = await payslipPdfLength(admin, roles);
-    expect(withImages).toBeGreaterThan(withoutImages);
+    expect(withImages.includes('/Subtype /Image')).toBe(true); // logo and signature really are embedded
+    expect(withImages.length).toBeGreaterThan(withoutImages.length);
 
     await request(app).delete('/api/company/logo').set(admin.auth).expect(204);
     await request(app).get('/api/company/logo').set(admin.auth).expect(404);
@@ -251,5 +254,5 @@ async function payslipPdfLength(admin: { auth: Record<string, string> }, r: Awai
   const slips = (await request(app).get(`/api/payroll/runs/${run._id}`).set(admin.auth)).body.payslips;
   const res = await get(`/api/payroll/payslips/${slips[0]._id}/pdf`, admin.auth).expect(200);
   expect((res.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
-  return (res.body as Buffer).length;
+  return res.body as Buffer;
 }

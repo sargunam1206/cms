@@ -41,11 +41,11 @@ companyRouter.get(
   authenticate,
   imageParam,
   ah(async (req, res) => {
-    const a = await CompanyAsset.findOne({ key: req.params.image }).lean();
+    const a = await CompanyAsset.findOne({ key: req.params.image }); // hydrated, so `data` is a Buffer
     if (!a) throw notFound('Image');
     res.setHeader('Content-Type', a.contentType);
     res.setHeader('Cache-Control', 'private, max-age=60');
-    res.send(Buffer.from(a.data as never));
+    res.send(a.data);
   }),
 );
 

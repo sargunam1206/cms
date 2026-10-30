@@ -21,6 +21,7 @@ export function sniffImage(buf: Buffer): 'image/png' | 'image/jpeg' | null {
 
 /** Everything the PDF header and footer need. */
 export async function companyForPdf() {
-  const [profile, logo, signature] = await Promise.all([getCompany(), CompanyAsset.findOne({ key: 'logo' }).lean(), CompanyAsset.findOne({ key: 'signature' }).lean()]);
-  return { ...profile, logo: logo ? Buffer.from(logo.data as never) : undefined, signature: signature ? Buffer.from(signature.data as never) : undefined };
+  // Not .lean(): a lean read returns a BSON Binary wrapper, while a hydrated document gives a real Buffer
+  const [profile, logo, signature] = await Promise.all([getCompany(), CompanyAsset.findOne({ key: 'logo' }), CompanyAsset.findOne({ key: 'signature' })]);
+  return { ...profile, logo: logo?.data?.length ? logo.data : undefined, signature: signature?.data?.length ? signature.data : undefined };
 }
