@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { Clock, LogIn, LogOut } from 'lucide-react';
 import { useGet, useSend } from '@/api/hooks';
 import type { Today } from '@/api/types';
-import { fmtMinutes, fmtTime } from '@/lib/utils';
+import { fmtLate, fmtMinutes, fmtTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,7 +66,7 @@ export function CheckInWidget() {
             <div className="font-medium">{fmtMinutes(rec?.workedMinutes)}</div>
           </div>
         </div>
-        {rec?.isLate && <Badge variant="warning">Late by {rec.lateMinutes} min</Badge>}
+        {rec?.isLate && <Badge variant="warning">Late by {fmtLate(rec.lateMinutes)}</Badge>}
         {onLeave ? (
           <p className="text-sm text-muted-foreground">You are on leave today.</p>
         ) : !rec?.checkIn ? (

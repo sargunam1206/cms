@@ -29,9 +29,18 @@ export interface EngineInput {
   loanEmi?: number; // paise
   oneTime?: OneTimeItem[];
   /** Taxable income and TDS already booked this financial year (paise), for the TDS projection. */
-  ytd?: { taxableIncome: number; tdsDeducted: number };
+  ytd?: {
+    taxableIncome: number;
+    tdsDeducted: number;
+    /** Months of this financial year before this one that the figures above cover (payslips already approved). */
+    monthsCovered?: number;
+    /** Months of this financial year before this one in which the person was employed. Earlier months with no payslip are assumed to have paid the same as this month. */
+    monthsEmployedBefore?: number;
+  };
   /** Gross already paid earlier in the current half-year (paise). When absent, this month's gross x 6 is used for PT. */
   halfYearGrossBefore?: number;
+  /** Earlier months of the half-year the person was employed but that have no payslip; assumed to have paid the same as this month. */
+  halfYearMissingMonths?: number;
 }
 
 export interface Line {
@@ -171,21 +180,27 @@ export function computePayroll(input: EngineInput): EngineResult {
 
   const monthNo = Number(input.month.slice(5, 7));
   if (st.pt.enabled && st.pt.deductionMonths.includes(monthNo) && gross > 0) {
-    const half = (input.halfYearGrossBefore !== undefined ? input.halfYearGrossBefore + gross : gross * 6) / 100;
+    const half = (input.halfYearGrossBefore !== undefined ? input.halfYearGrossBefore + gross * (1 + (input.halfYearMissingMonths ?? 0)) : gross * 6) / 100;
     const pt = toPaise(ptHalfYearly(half, st.pt.slabs));
     if (pt > 0) deductions.push({ code: 'PT', name: 'Professional Tax', amount: pt });
   }
 
   if (st.tds.enabled && taxableGross > 0) {
     const remaining = fiscalMonthsRemaining(input.month);
-    const elapsed = 12 - remaining;
-    // Without year-to-date figures, assume the same pay in every month so far and tax spread evenly
-    const ytdIncome = input.ytd?.taxableIncome ?? taxableGross * elapsed;
-    // Projection: income so far + this month, repeated for the months left
-    const projected = (ytdIncome + taxableGross * remaining) / 100;
+    const elapsed = 12 - remaining; // months of the financial year before this one
+    const ytd = input.ytd;
+    const employedBefore = ytd?.monthsEmployedBefore ?? elapsed;
+    // Figures passed without a month count are taken to cover every earlier month; with no figures at all, none are covered
+    const covered = ytd ? Math.min(ytd.monthsCovered ?? employedBefore, employedBefore) : 0;
+    // Months the person was employed but this system has no payslip for (e.g. before it was adopted):
+    // assume the same pay as this month, with tax spread evenly across the months worked in the year
+    const missing = Math.max(0, employedBefore - covered);
+    const monthsInYear = employedBefore + remaining;
+    // Projection: income so far (known or assumed) + this month, repeated for the months left
+    const projected = ((ytd?.taxableIncome ?? 0) + taxableGross * (missing + remaining)) / 100;
     const regime = employee.taxRegime === 'old' ? st.tds.oldRegime : st.tds.newRegime;
     const yearTax = toPaise(annualTax(projected, regime, st.tds.cessRate));
-    const alreadyDeducted = input.ytd?.tdsDeducted ?? roundPaise((yearTax * elapsed) / 12);
+    const alreadyDeducted = (ytd?.tdsDeducted ?? 0) + roundPaise((yearTax * missing) / monthsInYear);
     const tds = Math.max(0, roundPaise((yearTax - alreadyDeducted) / remaining));
     if (tds > 0) deductions.push({ code: 'TDS', name: 'Income Tax (TDS)', amount: tds });
   }

@@ -174,6 +174,23 @@ export async function employeeMonth(employeeId: Id | string, month: string) {
   };
 }
 
+/**
+ * Month summaries for many employees with a fixed number of queries (calendar, holidays and attendance are each
+ * read once), so payroll for hundreds of people does not issue hundreds of lookups.
+ */
+export async function monthSummariesFor(employees: { _id: Id; dateOfJoining: string; exitDate?: string | null }[], month: string) {
+  const { dates, cal, holidays } = await monthContext(month);
+  const rows = await AttendanceDay.find({ employee: { $in: employees.map((e) => e._id) }, date: { $gte: dates[0], $lte: dates[dates.length - 1] } }).lean();
+  const byEmp = new Map<string, Map<string, AttendanceDayDoc>>();
+  for (const r of rows) {
+    const k = String(r.employee);
+    if (!byEmp.has(k)) byEmp.set(k, new Map());
+    byEmp.get(k)!.set(r.date, r as AttendanceDayDoc);
+  }
+  const today = todayStr();
+  return new Map(employees.map((e) => [String(e._id), summarizeMonth(buildDays(dates, byEmp.get(String(e._id)) ?? new Map(), e, cal, holidays), cal, today)]));
+}
+
 /** Summary used by payroll (Phase 2) and the HR register. */
 export async function attendanceSummary(employeeId: Id | string, month: string) {
   return (await employeeMonth(employeeId, month)).summary;
@@ -314,6 +331,7 @@ export async function overrideDay(input: AttendanceOverrideInput, actor: { id: I
 
   const day = (await AttendanceDay.findOne({ employee: input.employee, date: input.date })) ?? new AttendanceDay({ employee: input.employee, date: input.date });
   if (day.leave?.fraction === 1) throw conflict('Employee is on approved leave that day; cancel the leave instead');
+  if (timesConflict(day, input)) throw badRequest('Check-out must be after the check-in already on this day');
   const before = snapshot(day);
 
   applyOverride(day, cal, input, actor.id);
@@ -330,13 +348,19 @@ interface OverrideValues {
   reason: string;
 }
 
+/** True when the check-out the override would leave on the day is not after its check-in. */
+function timesConflict(day: InstanceType<typeof AttendanceDay>, o: OverrideValues) {
+  const inAt = o.checkIn ? zonedDateTime(o.date, o.checkIn) : day.checkIn;
+  const outAt = o.checkOut ? zonedDateTime(o.date, o.checkOut) : day.checkOut;
+  return !!inAt && !!outAt && outAt.getTime() <= inAt.getTime();
+}
+
 /** Shared by the single and bulk override so both behave identically. */
 function applyOverride(day: InstanceType<typeof AttendanceDay>, cal: WorkCalendarSettings, o: OverrideValues, actorId: Id) {
-  if (o.checkIn && o.checkOut) {
-    day.checkIn = zonedDateTime(o.date, o.checkIn);
-    day.checkOut = zonedDateTime(o.date, o.checkOut);
-    applyEvaluation(day, cal); // keeps late/early/worked metrics honest
-  }
+  // Either time may be given on its own; the other keeps whatever the day already has
+  if (o.checkIn) day.checkIn = zonedDateTime(o.date, o.checkIn);
+  if (o.checkOut) day.checkOut = zonedDateTime(o.date, o.checkOut);
+  if (o.checkIn || o.checkOut) applyEvaluation(day, cal); // keeps late/early/worked metrics honest
   day.status = o.status; // the override wins over what the hours say
   day.missedCheckout = false;
   day.source = 'override';
@@ -396,6 +420,7 @@ const SKIP_LABEL = {
   notEmployed: 'Not employed on that date',
   leave: 'On approved leave',
   notFound: 'Employee not found',
+  timeOrder: 'Check-out would not be after the existing check-in',
 } as const;
 
 /**
@@ -447,6 +472,10 @@ export async function bulkOverride(input: AttendanceBulkOverrideInput, actor: { 
         const day = byKey.get(`${id}|${date}`) ?? new AttendanceDay({ employee: emp._id, date });
         if (day.leave?.fraction === 1) {
           skip('leave');
+          continue;
+        }
+        if (timesConflict(day, { ...input, date })) {
+          skip('timeOrder');
           continue;
         }
         if (!input.dryRun) {

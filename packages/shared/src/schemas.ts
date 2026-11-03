@@ -132,7 +132,7 @@ export const regularizationSchema = z
   .refine((v) => v.checkIn || v.checkOut, { message: 'Provide check-in and/or check-out time', path: ['checkIn'] });
 export type RegularizationInput = z.infer<typeof regularizationSchema>;
 
-/** HR/Admin direct correction. Times are optional, but if given both are required. */
+/** HR/Admin direct correction. Check-in and check-out are each optional (either one, both, or neither). */
 const overrideFields = {
   status: z.enum(['present', 'half', 'absent']),
   checkIn: timeStr.optional().or(z.literal('')),
@@ -140,14 +140,11 @@ const overrideFields = {
   reason: z.string().min(5, 'Give a reason (at least 5 characters)').max(500),
 };
 type OverrideTimes = { checkIn?: string; checkOut?: string };
-const hasBothTimesOrNone = (v: OverrideTimes) => !!v.checkIn === !!v.checkOut;
 const checkOutIsAfterIn = (v: OverrideTimes) => !v.checkIn || !v.checkOut || v.checkOut > v.checkIn;
-const BOTH_TIMES_MSG = { message: 'Provide both check-in and check-out, or neither', path: ['checkIn'] };
 const TIMES_ORDER_MSG = { message: 'Check-out must be after check-in', path: ['checkOut'] };
 
 export const attendanceOverrideSchema = z
   .object({ employee: objectId, date: dateStr, ...overrideFields })
-  .refine(hasBothTimesOrNone, BOTH_TIMES_MSG)
   .refine(checkOutIsAfterIn, TIMES_ORDER_MSG);
 export type AttendanceOverrideInput = z.infer<typeof attendanceOverrideSchema>;
 
@@ -166,7 +163,6 @@ export const attendanceBulkOverrideSchema = z
     message: `Choose at most ${BULK_OVERRIDE_MAX_DAYS} days at a time`,
     path: ['to'],
   })
-  .refine(hasBothTimesOrNone, BOTH_TIMES_MSG)
   .refine(checkOutIsAfterIn, TIMES_ORDER_MSG);
 export type AttendanceBulkOverrideInput = z.infer<typeof attendanceBulkOverrideSchema>;
 

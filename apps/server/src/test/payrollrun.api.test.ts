@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import dayjs from 'dayjs';
 import { AttendanceDay } from '../modules/attendance/model';
+import { Employee } from '../modules/employees/model';
 import { Loan, Payslip } from '../modules/payroll/model';
 import { app, connectTestDb, createPerson, dropTestDb, seedRoles } from './helpers';
 
@@ -52,6 +53,8 @@ describe('payroll run workflow', () => {
     await request(app).post('/api/payroll/runs').set(hr.auth).send({ month: MONTH }).expect(409);
     expect((await request(app).get('/api/attendance/locks').set(hr.auth)).body.some((l: { month: string; locked: boolean }) => l.month === MONTH && l.locked)).toBe(true);
 
+    await Employee.updateOne({ _id: a.employee._id }, { gender: 'female', branch: 'Coimbatore', esiNumber: '9988776655' });
+
     // compute: A gets a payslip, B is listed as skipped
     await request(app).post(`/api/payroll/runs/${run._id}/submit`).set(hr.auth).expect(400); // nothing computed yet
     const computed = (await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(hr.auth).expect(200)).body;
@@ -61,6 +64,8 @@ describe('payroll run workflow', () => {
     expect(slip?.gross).toBe(3_000_000 + 1_200_000 + 500_000);
     expect(slip?.deductions.find((d) => d.code === 'LOAN')?.amount).toBe(400_000);
     expect(slip?.net).toBe((slip?.gross ?? 0) - (slip?.totalDeductions ?? 0));
+    // The payslip snapshots the details printed in its header
+    expect(slip?.person).toMatchObject({ gender: 'female', branch: 'Coimbatore', esiNumber: '9988776655' });
     expect((await Loan.findById(loan._id).lean())?.balance).toBe(1_200_000); // untouched while draft
 
     // employees see nothing until approval
@@ -89,6 +94,9 @@ describe('payroll run workflow', () => {
     await request(app).post(`/api/payroll/runs/${run._id}/reopen`).set(mgmt.auth).send({ reason: 'correction needed' }).expect(403);
     await request(app).post(`/api/payroll/runs/${run._id}/reopen`).set(hr.auth).send({ reason: 'correction needed' }).expect(200);
     expect((await Loan.findById(loan._id).lean())?.balance).toBe(1_200_000);
+    // Old figures are stale after a reopen: submitting without recalculating is refused
+    const stale = await request(app).post(`/api/payroll/runs/${run._id}/submit`).set(hr.auth).expect(400);
+    expect(stale.body.message).toMatch(/Recalculate/);
     const again = (await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(hr.auth).expect(200)).body;
     expect(again.totals.net).toBe(computed.totals.net);
     expect((await request(app).get('/api/payroll/my/payslips').set(a.auth)).body).toHaveLength(0);
@@ -113,6 +121,8 @@ describe('payroll run workflow', () => {
     await request(app).post(`/api/payroll/runs/${run._id}/reject`).set(mgmt.auth).send({ comment: 'ok' }).expect(400); // comment too short
     const back = (await request(app).post(`/api/payroll/runs/${run._id}/reject`).set(mgmt.auth).send({ comment: 'Please recheck bonuses' }).expect(200)).body;
     expect(back.status).toBe('draft');
+    await request(app).post(`/api/payroll/runs/${run._id}/submit`).set(admin.auth).expect(400); // must recalculate after being sent back
+    await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(admin.auth).expect(200);
 
     // With management approval switched off, HR's submit is final
     await request(app).put('/api/payroll/workflow').set(admin.auth).send({ managementApproval: false }).expect(200);

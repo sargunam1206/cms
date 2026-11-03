@@ -13,10 +13,10 @@ import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { inr } from './types';
 
-function EmployeeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function EmployeeSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
   const emps = useGet<Paged<EmployeeRef>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' });
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)} className="w-64">
+    <Select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="w-64">
       <option value="">Select employee…</option>
       {emps.data?.items.map((e) => (
         <option key={e._id} value={e._id}>

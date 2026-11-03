@@ -548,3 +548,43 @@ describe('list filters and input hardening', () => {
     await request(app).post('/api/auth/login').send({ email: 'a@b.co', password: 'x'.repeat(1_500_000) }).expect(413);
   });
 });
+
+describe('override with only one time', () => {
+  it('accepts check-in alone or check-out alone, rejects a check-out before the check-in', async () => {
+    const hr = await createPerson(roles.HR);
+    const emp = await createPerson(roles.Employee);
+    const id = String(emp.employee._id);
+    const row = (date: string) => AttendanceDay.findOne({ employee: emp.employee._id, date }).lean();
+    clockAt('2026-10-20', '12:00');
+    const send = (date: string, extra: object) => request(app).post('/api/attendance/override').set(hr.auth).send({ employee: id, date, status: 'present', reason: 'Testing one time', ...extra });
+
+    // check-in only: late is worked out from it, no hours yet, and HR's status stands
+    await send('2026-10-13', { checkIn: '10:41' }).expect(200);
+    expect(await row('2026-10-13')).toMatchObject({ status: 'present', source: 'override', isLate: true, lateMinutes: 71, workedMinutes: 0 });
+    expect((await row('2026-10-13'))?.checkOut).toBeFalsy();
+
+    // adding the check-out later on its own completes the hours and keeps the check-in
+    await send('2026-10-13', { checkOut: '18:41' }).expect(200);
+    expect(await row('2026-10-13')).toMatchObject({ status: 'present', workedMinutes: 480, isLate: true });
+
+    // check-out alone on a fresh day
+    await send('2026-10-14', { checkOut: '18:30' }).expect(200);
+    const only = await row('2026-10-14');
+    expect(only?.checkOut).toBeTruthy();
+    expect(only?.checkIn).toBeFalsy();
+    expect(only?.isLate).toBe(false);
+
+    // a check-out that is not after the check-in already on the day is refused
+    await send('2026-10-13', { checkOut: '09:00' }).expect(400);
+    // and both given in the wrong order are still refused
+    await send('2026-10-15', { checkIn: '18:00', checkOut: '09:00' }).expect(400);
+
+    // bulk: check-in only over several days, with the conflicting day skipped and reported
+    const bulk = (extra: object, dryRun = false) =>
+      request(app).post('/api/attendance/override/bulk').set(hr.auth).send({ employees: [id], from: '2026-10-13', to: '2026-10-15', status: 'present', reason: 'Bulk one time', dryRun, ...extra });
+    const res = (await bulk({ checkOut: '09:00' }).expect(200)).body;
+    // Oct 13 already has a 10:41 check-in, so a 09:00 check-out cannot apply there; Oct 14 and 15 have no check-in
+    expect(res.updated).toBe(2);
+    expect(res.skippedByReason).toEqual({ 'Check-out would not be after the existing check-in': 1 });
+  });
+});

@@ -35,14 +35,11 @@ interface Line {
   formula?: string | null;
 }
 
-/** Joins the component master with an employee's structure lines into engine components. */
-export async function buildEngineComponents(
+/** Joins an already-loaded component master with structure lines into engine components. */
+export function engineComponentsFrom(
+  master: { code: string; name: string; kind: 'earning' | 'deduction'; taxable: boolean; prorate: boolean; order: number }[],
   lines: Line[],
-): Promise<EngineComponent[]> {
-  const master = await SalaryComponent.find({
-    code: { $in: lines.map((l) => l.code) },
-    active: true,
-  }).lean();
+): EngineComponent[] {
   const byCode = new Map(master.map((m) => [m.code, m]));
   return lines.map((l) => {
     const m = byCode.get(l.code);
@@ -60,6 +57,17 @@ export async function buildEngineComponents(
         : { fixedAmount: l.fixedAmount ?? 0 }),
     };
   });
+}
+
+/** Joins the component master with an employee's structure lines into engine components. */
+export async function buildEngineComponents(
+  lines: Line[],
+): Promise<EngineComponent[]> {
+  const master = await SalaryComponent.find({
+    code: { $in: lines.map((l) => l.code) },
+    active: true,
+  }).lean();
+  return engineComponentsFrom(master, lines);
 }
 
 /** Checks a set of lines can be evaluated (known codes, no cycles, safe formulas) before they are saved. */

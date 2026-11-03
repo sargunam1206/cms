@@ -6,7 +6,7 @@ import { PERMISSIONS as P } from '@cms/shared';
 import { useGet } from '@/api/hooks';
 import type { EmployeeMonth } from '@/api/types';
 import { useAuth } from '@/lib/auth';
-import { fmtDate, thisMonth } from '@/lib/utils';
+import { fmtDate, fmtLate, thisMonth } from '@/lib/utils';
 import { MonthPicker, PageHeader, Spinner } from '@/components/common/page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,7 +84,7 @@ export function EmployeeAttendancePage() {
                     {lateDays.map((d) => (
                       <TR key={d.date}>
                         <TD>{fmtDate(d.date)}</TD>
-                        <TD>{d.record?.lateMinutes ?? 0} min late</TD>
+                        <TD>{fmtLate(d.record?.lateMinutes)} late</TD>
                         <TD>
                           {d.lateExcused ? (
                             <Badge variant="secondary" title={d.record?.lateExcused?.reason}>

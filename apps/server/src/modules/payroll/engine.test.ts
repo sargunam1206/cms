@@ -177,3 +177,36 @@ describe('payslip presentation', () => {
     expect(presentPayslip({ ...noLop, attendance: { lopDays: 3 } }).deductions).toHaveLength(1); // old payslip: no fullAmount recorded
   });
 });
+
+describe('tax and professional tax when earlier months have no payslip', () => {
+  const rich = (over: Partial<EngineInput> = {}) =>
+    base({ components: [comp('BASIC', { fixedAmount: 250000, order: 1 })], employee: NO_STAT, ...over });
+
+  it('TDS for someone already employed assumes the same pay for the earlier months (full-year projection)', () => {
+    // 2.5L x 12 = 30L; new regime tax 4,57,500 + 4% cess = 4,75,800; a twelfth is 39,650
+    const r = computePayroll(rich({ ytd: { taxableIncome: 0, tdsDeducted: 0, monthsCovered: 0, monthsEmployedBefore: 6 } }));
+    expect(line(r.deductions, 'TDS')).toBe(3_965_000);
+    // the same with no figures at all
+    expect(line(computePayroll(rich()).deductions, 'TDS')).toBe(3_965_000);
+  });
+
+  it('a mid-year joiner is taxed only on the months actually worked', () => {
+    // Joined this month (October): 6 months of pay = 15L; 15L - 75k = 14.25L -> 97,500 incl. cess; over 6 months = 16,250
+    const r = computePayroll(rich({ ytd: { taxableIncome: 0, tdsDeducted: 0, monthsCovered: 0, monthsEmployedBefore: 0 } }));
+    expect(line(r.deductions, 'TDS')).toBe(1_625_000);
+  });
+
+  it('covered months use the real figures; only the uncovered earlier months are assumed', () => {
+    // Employed all 6 earlier months, 3 of them paid through the system (3 x 2.5L, 3 x 39,650 tax)
+    const r = computePayroll(rich({ ytd: { taxableIncome: 3 * 25_000_000, tdsDeducted: 3 * 3_965_000, monthsCovered: 3, monthsEmployedBefore: 6 } }));
+    expect(line(r.deductions, 'TDS')).toBe(3_965_000); // steady pay -> steady tax
+  });
+
+  it('professional tax uses the whole half-year even when earlier months have no payslip', () => {
+    const pay = (over: Partial<EngineInput>) => line(computePayroll(base({ month: '2026-09', employee: NO_STAT, components: [comp('BASIC', { fixedAmount: 12000, order: 1 })], ...over })).deductions, 'PT');
+    // 12,000 a month is 72,000 over the half-year -> the 75,000 slab (1,025); one month alone would be 12,000 -> nil
+    expect(pay({ halfYearGrossBefore: 0, halfYearMissingMonths: 5 })).toBe(102_500);
+    expect(pay({ halfYearGrossBefore: 0, halfYearMissingMonths: 0 })).toBeUndefined();
+  });
+});
+

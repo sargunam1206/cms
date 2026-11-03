@@ -73,12 +73,12 @@ function safeImage(doc: PDFKit.PDFDocument, img: Buffer | undefined, x: number, 
  */
 function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: number) {
   const top = 34;
-  const leftW = 170;
+  const leftW = 150;
   const rightX = L + leftW + 15;
   const rightW = W - leftW - 15;
 
   // Left column
-  const logoH = safeImage(doc, c.logo, L, top + 2, [leftW - 10, 62]);
+  const logoH = safeImage(doc, c.logo, L, top + 2, [120, 44]);
   let ly = top + (logoH ? logoH + 10 : 0);
   doc.font('Helvetica').fontSize(9).fillColor('#333');
   const left = [c.gstin && `GST : ${c.gstin}`, c.pan && `PAN : ${c.pan}`, c.tan && `TAN : ${c.tan}`, c.pfRegNo && `PF Reg : ${c.pfRegNo}`, c.esiRegNo && `ESI Reg : ${c.esiRegNo}`].filter(Boolean) as string[];
@@ -88,10 +88,10 @@ function drawHeader(doc: PDFKit.PDFDocument, c: CompanyInfo, L: number, W: numbe
   }
 
   // Right column
-  doc.font('Helvetica-Bold').fontSize(17).fillColor('#000').text(c.name, rightX, top, { width: rightW });
+  doc.font('Helvetica-Bold').fontSize(17).fillColor('#000').text(c.name, rightX, top, { width: rightW, align: 'right' });
   doc.font('Helvetica').fontSize(9).fillColor('#333');
-  if (c.address) doc.text(c.address, rightX, doc.y + 3, { width: rightW });
-  for (const line of [c.email && `Email : ${c.email}`, c.website && `Web : ${c.website}`].filter(Boolean) as string[]) doc.text(line, rightX, doc.y + 1, { width: rightW });
+  if (c.address) doc.text(c.address, rightX, doc.y + 3, { width: rightW, align: 'right' });
+  for (const line of [c.email && `Email : ${c.email}`, c.website && `Web : ${c.website}`].filter(Boolean) as string[]) doc.text(line, rightX, doc.y + 1, { width: rightW, align: 'right' });
   const ry = doc.y;
 
   const bottom = Math.max(ly, ry) + 8;
@@ -160,16 +160,24 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInf
     doc.font('Helvetica').fontSize(8).fillColor('#666').text(`Employer contributions (not part of your pay): ${slip.employerContributions.map((e) => `${e.name} ${money(e.amount)}`).join('  |  ')}`, L, y, { width: W });
   }
 
-  // Authorised signatory, bottom right
-  const sigY = 700;
-  if (company.signature || company.signatoryName) {
-    const sigX = L + W - 170;
-    safeImage(doc, company.signature, sigX, sigY, [150, 46]);
-    doc.moveTo(sigX, sigY + 52).lineTo(sigX + 160, sigY + 52).lineWidth(0.5).strokeColor('#666').stroke().strokeColor('#000').lineWidth(1);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000').text(company.signatoryName || 'Authorised signatory', sigX, sigY + 56, { width: 160 });
-    doc.font('Helvetica').fontSize(8).fillColor('#555').text(company.signatoryTitle || (company.signatoryName ? 'Authorised signatory' : ''), sigX, doc.y, { width: 160 });
+  // Sign-off just below the net pay card (and the employer-contribution note, if any), on the right
+  const sigY = slip.employerContributions?.length ? doc.y + 26 : y + 14;
+  if (company.signature || company.signatoryName || company.signatoryTitle) {
+    const sigW = 125;
+    const sigX = L + W - sigW; // block sits flush with the right margin
+    doc.font('Helvetica').fontSize(9).fillColor('#000').text('With Regards,', sigX, sigY, { width: sigW });
+    const imgH = safeImage(doc, company.signature, sigX, sigY + 16, [110, 34]);
+    doc.y = sigY + 16 + (imgH || 16) + 4;
+    if (company.signatoryName) doc.font('Helvetica-Bold').fontSize(9).fillColor('#000').text(company.signatoryName, sigX, doc.y, { width: sigW });
+    if (company.signatoryTitle) doc.font('Helvetica').fontSize(8.5).fillColor('#333').text(company.signatoryTitle, sigX, doc.y, { width: sigW });
   }
-  doc.fillColor('#888').font('Helvetica').fontSize(8).text('This is a computer-generated payslip.', L, 790, { width: W, align: 'center' });
+
+  // Footer: company contact line
+  const footer = [company.phone && `Mobile no: ${company.phone}`, company.email && `Email: ${company.email}`, company.website].filter(Boolean).join('  |  ');
+  if (footer) {
+    doc.moveTo(L, 782).lineTo(L + W, 782).lineWidth(0.5).strokeColor('#bbb').stroke().strokeColor('#000').lineWidth(1);
+    doc.fillColor('#555').font('Helvetica').fontSize(8.5).text(footer, L, 788, { width: W, align: 'center' });
+  }
 }
 
 /** One A4 page per payslip, in a single PDF. */

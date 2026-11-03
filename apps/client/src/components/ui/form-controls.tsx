@@ -32,13 +32,27 @@ export const Label = React.forwardRef<
 >(({ className, ...props }, ref) => <LabelPrimitive.Root ref={ref} className={cn('text-sm font-medium leading-none', className)} {...props} />);
 Label.displayName = 'Label';
 
-/** Label + control + error message. */
+/**
+ * Label + control + error message. The label is linked to the control (htmlFor/id), so clicking the label
+ * focuses the field and screen readers announce it. Works when the child is a single input-like element;
+ * a wrapper component that does not pass `id` on simply stays unlinked.
+ */
 export function Field({ label, error, children, className }: { label: string; error?: string; children: React.ReactNode; className?: string }) {
+  const id = React.useId();
+  const errorId = `${id}-error`;
+  const control =
+    React.isValidElement<{ id?: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }>(children) && children.props.id === undefined
+      ? React.cloneElement(children, { id, ...(error ? { 'aria-describedby': errorId, 'aria-invalid': true } : {}) })
+      : children;
   return (
     <div className={cn('space-y-1.5', className)}>
-      <Label>{label}</Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Label htmlFor={id}>{label}</Label>
+      {control}
+      {error && (
+        <p id={errorId} className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -165,16 +165,16 @@ export function PayrollRunPage() {
     <>
       <PageHeader
         title={`Payroll · ${dayjs(`${run.month}-01`).format('MMMM YYYY')}`}
-        description={run.computedAt ? `Last calculated ${fmtDate(run.computedAt)}` : 'Not calculated yet'}
+        description={run.computedAt ? `Last calculated ${fmtDate(run.computedAt)}` : run.totals?.employees ? 'Out of date: click Recalculate payslips before submitting' : 'Not calculated yet'}
         actions={
           <>
             {statusBadge(run.status)}
             {manage && run.status === 'draft' && (
               <>
                 <Button variant="outline" disabled={compute.isPending} onClick={() => compute.mutate(undefined)}>
-                  {run.computedAt ? 'Recalculate' : 'Calculate payslips'}
+                  {run.totals?.employees ? 'Recalculate payslips' : 'Calculate payslips'}
                 </Button>
-                <Button disabled={submit.isPending || !run.totals?.employees} onClick={() => submit.mutate(undefined)}>
+                <Button disabled={submit.isPending || !run.computedAt} title={run.computedAt ? undefined : 'Recalculate first'} onClick={() => submit.mutate(undefined)}>
                   Submit for approval
                 </Button>
               </>
