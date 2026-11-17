@@ -5,6 +5,7 @@ let accessToken: string | null = null;
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
 };
+export const getAccessToken = () => accessToken;
 
 let onSessionExpired: () => void = () => {};
 export const setSessionExpiredHandler = (fn: () => void) => {

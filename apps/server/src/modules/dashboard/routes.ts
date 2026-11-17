@@ -6,8 +6,12 @@ import { todayStr } from '../../utils/time';
 import { AttendanceDay, RegularizationRequest } from '../attendance/model';
 import { Employee, teamIds } from '../employees/model';
 import { LeaveRequest } from '../leave/model';
+import { insightsFor } from './insights';
 
 export const dashboardRouter = Router();
+
+/** Role-based cards: each block is present only for people allowed to see it. */
+dashboardRouter.get('/insights', ah(async (req, res) => res.json(await insightsFor(req))));
 
 /** Counts shown on the home page; each block appears only if the user can act on it. */
 dashboardRouter.get(

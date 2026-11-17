@@ -15,6 +15,14 @@ import { attendanceRouter, regularizationRouter } from './modules/attendance/rou
 import { leaveRouter } from './modules/leave/routes';
 import { companyRouter } from './modules/company/routes';
 import { payrollRouter } from './modules/payroll/routes';
+import { ideasRouter } from './modules/ideas/routes';
+import { enquiriesRouter } from './modules/enquiries/routes';
+import { estimatesRouter } from './modules/estimates/routes';
+import { milestonesRouter } from './modules/milestones/routes';
+import { taskFilesRouter } from './modules/projects/files';
+import { projectsRouter } from './modules/projects/routes';
+import { timesheetsRouter } from './modules/timesheets/routes';
+import { notificationsRouter } from './modules/notifications/routes';
 import { profileRouter } from './modules/profile/routes';
 import { dashboardRouter } from './modules/dashboard/routes';
 
@@ -42,6 +50,14 @@ export function createApp() {
   api.use('/leave', leaveRouter);
   api.use('/profile', profileRouter);
   api.use('/payroll', payrollRouter);
+  api.use('/projects', taskFilesRouter); // task attachments (before the projects router so its /:id routes do not catch these)
+  api.use('/projects', projectsRouter);
+  api.use('/estimates', estimatesRouter);
+  api.use('/enquiries', enquiriesRouter);
+  api.use('/ideas', ideasRouter);
+  api.use('/milestones', milestonesRouter);
+  api.use('/timesheets', timesheetsRouter);
+  api.use('/notifications', notificationsRouter);
   api.use('/company', companyRouter);
   api.use('/dashboard', dashboardRouter);
   app.use('/api', api);

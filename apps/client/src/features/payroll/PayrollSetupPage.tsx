@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { PERMISSIONS as P } from '@cms/shared';
 import { useGet, useSend } from '@/api/hooks';
+import type { Employee, Paged } from '@/api/types';
 import { useAuth } from '@/lib/auth';
 import { PageHeader, Spinner } from '@/components/common/page';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +65,15 @@ function ApprovalTab({ canEdit }: { canEdit: boolean }) {
   );
 }
 
+function DeleteButton({ url, confirm }: { url: string; confirm: string }) {
+  const del = useSend('delete', url, { invalidate: [['payroll']], success: 'Deleted' });
+  return (
+    <Button size="sm" variant="ghost" className="text-destructive" disabled={del.isPending} onClick={() => window.confirm(confirm) && del.mutate(undefined)}>
+      Delete
+    </Button>
+  );
+}
+
 // ---------- Components ----------
 const blankComponent: Omit<PayComponent, '_id'> = { code: '', name: '', kind: 'earning', taxable: true, prorate: true, order: 10, active: true };
 
@@ -106,9 +117,12 @@ function ComponentsTab({ canEdit }: { canEdit: boolean }) {
                   <TD>{c.active ? <Badge variant="success">active</Badge> : <Badge variant="secondary">inactive</Badge>}</TD>
                   <TD className="text-right">
                     {canEdit && (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
-                        Edit
-                      </Button>
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                          Edit
+                        </Button>
+                        <DeleteButton url={`/payroll/components/${c._id}`} confirm={`Delete component ${c.code}?`} />
+                      </>
                     )}
                   </TD>
                 </TR>
@@ -187,6 +201,8 @@ function ComponentDialog({ editing, onClose }: { editing: PayComponent | 'new' |
 function TemplatesTab({ canEdit }: { canEdit: boolean }) {
   const { data } = useGet<PayTemplate[]>(['payroll', 'templates'], '/payroll/templates');
   const [editing, setEditing] = useState<PayTemplate | 'new' | null>(null);
+  const [applying, setApplying] = useState<PayTemplate | null>(null);
+  const [assigning, setAssigning] = useState<PayTemplate | null>(null);
   return (
     <>
       {canEdit && (
@@ -214,9 +230,18 @@ function TemplatesTab({ canEdit }: { canEdit: boolean }) {
                   <TD className="text-xs text-muted-foreground">{t.lines.map((l) => l.code).join(', ')}</TD>
                   <TD className="text-right">
                     {canEdit && (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(t)}>
-                        Edit
-                      </Button>
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(t)}>
+                          Edit
+                        </Button>
+                        <DeleteButton url={`/payroll/templates/${t._id}`} confirm={`Delete template "${t.name}"? Employees already set up from it keep their own salary lines.`} />
+                        <Button size="sm" variant="ghost" onClick={() => setAssigning(t)}>
+                          Assign to employees
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setApplying(t)}>
+                          Update current users
+                        </Button>
+                      </>
                     )}
                   </TD>
                 </TR>
@@ -225,9 +250,129 @@ function TemplatesTab({ canEdit }: { canEdit: boolean }) {
           </Table>
         </CardContent>
       </Card>
-      <p className="mt-2 text-xs text-muted-foreground">Changing a template does not change employees already set up from it; each employee keeps their own copy.</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Saving a template does not change employees already set up from it; each employee keeps their own copy. Use "Apply to employees" to copy the template onto everyone whose current salary was started from it.
+      </p>
       <TemplateDialog editing={editing} onClose={() => setEditing(null)} />
+      <ApplyDialog template={applying} onClose={() => setApplying(null)} />
+      <AssignDialog template={assigning} onClose={() => setAssigning(null)} />
     </>
+  );
+}
+
+function AssignDialog({ template, onClose }: { template: PayTemplate | null; onClose: () => void }) {
+  const [from, setFrom] = useState('');
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const emps = useGet<Paged<Employee>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' }, !!template);
+  useEffect(() => {
+    if (template) {
+      setFrom(new Date().toISOString().slice(0, 8) + '01');
+      setQ('');
+      setPicked(new Set());
+    }
+  }, [template]);
+  const list = (emps.data?.items ?? []).filter((e) => `${e.name} ${e.code} ${e.department ?? ''}`.toLowerCase().includes(q.toLowerCase()));
+  const toggle = (id: string) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const allShown = list.length > 0 && list.every((e) => picked.has(e._id));
+  const assign = useSend<void, { updated: number }>('post', `/payroll/templates/${template?._id ?? ''}/assign`, {
+    invalidate: [['payroll']],
+    onSuccess: (r) => {
+      toast.success(`Template assigned to ${r.updated} employee${r.updated === 1 ? '' : 's'}`);
+      onClose();
+    },
+    body: () => ({ employeeIds: [...picked], effectiveFrom: from }),
+  });
+  return (
+    <Dialog open={!!template} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Assign "{template?.name}" to employees</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">Each chosen employee gets their own copy of this template's salary lines from the date below, replacing any salary set for that exact date.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Effective from">
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="Search">
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, code or department" />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={allShown}
+            onChange={() =>
+              setPicked((s) => {
+                const n = new Set(s);
+                list.forEach((e) => (allShown ? n.delete(e._id) : n.add(e._id)));
+                return n;
+              })
+            }
+          />
+          Select all shown ({list.length})
+        </label>
+        <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border p-2">
+          {emps.isLoading && <Spinner />}
+          {list.map((e) => (
+            <label key={e._id} className="flex items-center gap-2 text-sm">
+              <Checkbox checked={picked.has(e._id)} onChange={() => toggle(e._id)} />
+              <span className="font-medium">{e.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {e.code}
+                {e.department ? ` · ${e.department}` : ''}
+              </span>
+            </label>
+          ))}
+          {!emps.isLoading && !list.length && <p className="text-sm text-muted-foreground">No employees match.</p>}
+        </div>
+        <DialogFooter>
+          <Button disabled={assign.isPending || !from || !picked.size} onClick={() => assign.mutate(undefined)}>
+            Assign to {picked.size || ''} selected
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ApplyDialog({ template, onClose }: { template: PayTemplate | null; onClose: () => void }) {
+  const [from, setFrom] = useState('');
+  useEffect(() => {
+    if (template) setFrom(new Date().toISOString().slice(0, 8) + '01');
+  }, [template]);
+  const apply = useSend<void, { updated: number }>('post', `/payroll/templates/${template?._id ?? ''}/apply`, {
+    invalidate: [['payroll']],
+    onSuccess: (r) => {
+      toast.success(`Applied to ${r.updated} employee${r.updated === 1 ? '' : 's'}`);
+      onClose();
+    },
+    body: () => ({ effectiveFrom: from }),
+  });
+  return (
+    <Dialog open={!!template} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Apply "{template?.name}" to employees</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Replaces the salary lines of every employee whose current salary was started from this template, from the date below. Their own edits to those lines are overwritten. Earlier months are not touched; to update a payslip already computed, recompute that run.
+        </p>
+        <Field label="Effective from">
+          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        <DialogFooter>
+          <Button disabled={apply.isPending || !from} onClick={() => apply.mutate(undefined)}>
+            Apply
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

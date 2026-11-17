@@ -3,6 +3,7 @@ import type { AttendanceBulkOverrideInput, AttendanceLateReliefInput, Attendance
 import { badRequest, conflict, forbidden, locked, notFound } from '../../utils/errors';
 import { datesBetween, datesInMonth, monthOf, now, toDateStr, todayStr, zonedDateTime } from '../../utils/time';
 import { audit } from '../audit/model';
+import { approversOf, employeeName, notify, usersOfEmployees } from '../notifications/service';
 import { Employee } from '../employees/model';
 import { holidaySet } from '../holidays/model';
 import { getWorkCalendar } from '../settings/service';
@@ -251,6 +252,15 @@ export async function createRegularization(employeeId: Id, input: Regularization
   }
   const reg = await RegularizationRequest.create({ ...input, employee: employeeId });
   await audit({ actor, action: 'regularization.create', entity: 'RegularizationRequest', entityId: reg._id, after: input });
+  await notify({
+    type: 'regularization.requested',
+    to: await approversOf(employeeId),
+    actor,
+    title: `${await employeeName(employeeId)} asked for an attendance correction`,
+    body: input.date,
+    link: '/approvals',
+    entity: { kind: 'RegularizationRequest', id: reg._id },
+  });
   return reg;
 }
 
@@ -298,6 +308,15 @@ export async function decideRegularization(id: string, decision: 'approved' | 'r
   reg.comment = comment;
   await reg.save();
   await audit({ actor: actor.id, action: `regularization.${decision}`, entity: 'RegularizationRequest', entityId: reg._id, meta: { comment } });
+  await notify({
+    type: 'regularization.decided',
+    to: await usersOfEmployees([reg.employee]),
+    actor: actor.id,
+    title: `Your attendance correction was ${decision}`,
+    body: `${reg.date}${comment ? ` · ${comment}` : ''}`,
+    link: '/my/attendance',
+    entity: { kind: 'RegularizationRequest', id: reg._id },
+  });
   return reg;
 }
 

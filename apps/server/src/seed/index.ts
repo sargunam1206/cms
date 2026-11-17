@@ -2,7 +2,7 @@
  * Idempotent seed: roles, default settings, leave types and the admin login.
  * `npm run seed:demo` also creates sample employees with logins (password: Passw0rd!).
  */
-import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_WORK_CALENDAR, ROLE_NAMES } from '@cms/shared';
+import { DEFAULT_ENQUIRY_OPTIONS, DEFAULT_RATE_CARD, DEFAULT_ROLE_PERMISSIONS, DEFAULT_WORK_CALENDAR, PHASE3_PERMISSIONS, PHASE4_PERMISSIONS, PHASE5_PERMISSIONS, ROLE_NAMES } from '@cms/shared';
 import { connectDb, disconnectDb } from '../config/db';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
@@ -56,6 +56,38 @@ async function main() {
       roles[name] = existing._id;
     }
   }
+
+  // One-time: give existing roles the Phase 3 permissions they get by default. After this, roles are theirs to edit.
+  if (!(await Setting.exists({ key: 'migration.phase3Permissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => PHASE3_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.phase3Permissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added Phase 3 permissions to existing roles');
+  }
+
+  if (!(await Setting.exists({ key: 'migration.phase4Permissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => PHASE4_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.phase4Permissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added Phase 4 permissions to existing roles');
+  }
+
+  if (!(await Setting.exists({ key: 'migration.phase5Permissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => PHASE5_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.phase5Permissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added Phase 5 permissions to existing roles');
+  }
+  await Setting.updateOne({ key: 'enquiryOptions', effectiveFrom: '1970-01-01' }, { $setOnInsert: { value: DEFAULT_ENQUIRY_OPTIONS } }, { upsert: true });
+
+  // A starting rate card (placeholders) so estimates can be written straight away; the company edits it in Settings
+  await Setting.updateOne({ key: 'rateCard', effectiveFrom: '1970-01-01' }, { $setOnInsert: { value: DEFAULT_RATE_CARD } }, { upsert: true });
 
   await Setting.updateOne(
     { key: SETTING_KEYS.WORK_CALENDAR, effectiveFrom: '1970-01-01' },

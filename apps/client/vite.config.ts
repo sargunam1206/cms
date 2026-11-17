@@ -7,6 +7,9 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   server: {
     port: 5173,
-    proxy: { '/api': 'http://localhost:4000' },
+    proxy: {
+      '/api': 'http://localhost:4000',
+      '/socket.io': { target: 'http://localhost:4000', ws: true },
+    },
   },
 });

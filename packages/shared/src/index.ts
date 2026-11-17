@@ -3,3 +3,7 @@ export * from './enums';
 export * from './schemas';
 export * from './payroll';
 export * from './company';
+export * from './projects';
+export * from './notifications';
+export * from './estimates';
+export * from './crm';

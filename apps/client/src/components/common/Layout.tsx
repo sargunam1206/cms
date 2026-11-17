@@ -21,14 +21,26 @@ import {
   Receipt,
   ListPlus,
   UserMinus,
+  FolderKanban,
+  GanttChart,
+  Target,
+  Lightbulb,
+  FileBarChart,
+  ListChecks,
+  Briefcase,
+  Bell,
+  Timer,
+  ClipboardCheck,
   Plane,
 } from 'lucide-react';
 import { PERMISSIONS as P, type Permission } from '@cms/shared';
 import { useGet } from '@/api/hooks';
+import { useImage } from '@/features/settings/CompanyTab';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
+import { NotificationBell } from './NotificationBell';
 
 interface NavItem {
   to: string;
@@ -44,8 +56,23 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/profile', label: 'My Profile', icon: UserCircle },
       { to: '/my/attendance', label: 'My Attendance', icon: CalendarCheck, perms: [P.ATTENDANCE_SELF] },
+      { to: '/notifications', label: 'Notifications', icon: Bell },
+      { to: '/my/timesheet', label: 'My Timesheet', icon: Timer, perms: [P.TASKS_SELF] },
+      { to: '/my/tasks', label: 'My Tasks', icon: ListChecks, perms: [P.TASKS_SELF] },
       { to: '/my/payslips', label: 'My Payslips', icon: Receipt },
       { to: '/my/leave', label: 'My Leave', icon: Plane, perms: [P.LEAVE_SELF] },
+    ],
+  },
+  {
+    section: 'Work',
+    items: [
+      { to: '/projects', label: 'Projects', icon: FolderKanban, perms: [P.TASKS_SELF, P.PROJECTS_VIEW, P.PROJECTS_MANAGE] },
+      { to: '/timesheets/approvals', label: 'Timesheet Approvals', icon: ClipboardCheck, perms: [P.LEAVE_APPROVE, P.ATTENDANCE_ALL] },
+      { to: '/estimates/report', label: 'Estimate Report', icon: FileBarChart, perms: [P.ESTIMATES_VIEW] },
+      { to: '/timelines', label: 'Timelines', icon: GanttChart, perms: [P.PROJECTS_VIEW] },
+      { to: '/ideas', label: 'Innovation Hub', icon: Lightbulb, perms: [P.IDEAS_SELF, P.IDEAS_MANAGE] },
+      { to: '/enquiries', label: 'Enquiries', icon: Target, perms: [P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE] },
+      { to: '/clients', label: 'Clients', icon: Briefcase, perms: [P.PROJECTS_MANAGE, P.PROJECTS_VIEW] },
     ],
   },
   {
@@ -66,7 +93,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/payroll/fnf', label: 'Full & Final', icon: UserMinus, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/payroll/setup', label: 'Payroll Setup', icon: Wallet, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/users', label: 'Users & Roles', icon: Users, perms: [P.USERS_MANAGE, P.ROLES_MANAGE] },
-      { to: '/settings', label: 'Settings', icon: Settings, perms: [P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE] },
+      { to: '/settings', label: 'Settings', icon: Settings, perms: [P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE, P.ESTIMATES_VIEW, P.ENQUIRIES_MANAGE] },
       { to: '/audit', label: 'Audit Log', icon: History, perms: [P.AUDIT_VIEW] },
     ],
   },
@@ -76,12 +103,17 @@ export function Layout() {
   const { user, can, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
-  const company = useGet<{ name: string }>(['company'], '/company');
+  const company = useGet<{ name: string; hasLogo?: boolean }>(['company'], '/company');
+  const logo = useImage('logo', !!company.data?.hasLogo, company.dataUpdatedAt);
 
   const sidebar = (
     <nav className="flex h-full flex-col gap-4 p-3">
-      <div className="flex items-center gap-2 px-2 py-2 font-semibold">
-        <ShieldCheck className="h-5 w-5 shrink-0 text-primary" /> <span className="truncate">{company.data?.name || 'CMS'}</span>
+      <div className="px-2 py-2">
+        <div className="flex items-center justify-between gap-2">
+          {logo ? <img src={logo} alt="" className="max-h-12 max-w-[8.5rem] object-contain object-left" /> : <ShieldCheck className="h-6 w-6 shrink-0 text-primary" />}
+          <NotificationBell />
+        </div>
+        <div className="mt-2 break-words text-sm font-semibold leading-snug">{company.data?.name || 'CMS'}</div>
       </div>
       {NAV.map(({ section, items }) => {
         const visible = items.filter((i) => !i.perms || can(...i.perms));
@@ -137,7 +169,10 @@ export function Layout() {
           <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu />
           </Button>
-          <span className="ml-2 font-semibold">CMS</span>
+          <span className="ml-2 font-semibold">{company.data?.name || 'CMS'}</span>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-8">
           <Outlet />

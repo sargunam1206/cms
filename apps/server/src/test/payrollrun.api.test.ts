@@ -75,7 +75,14 @@ describe('payroll run workflow', () => {
     await request(app).post(`/api/payroll/runs/${run._id}/submit`).set(hr.auth).expect(200);
     await request(app).post(`/api/payroll/runs/${run._id}/compute`).set(hr.auth).expect(409); // frozen once submitted
     await request(app).post(`/api/payroll/runs/${run._id}/approve`).set(hr.auth).expect(403);
+    // submitting told the approver; approving tells HR and gives each employee their payslip notice
+    const bell = async (who: { auth: Record<string, string> }) => (await request(app).get('/api/notifications').set(who.auth).expect(200)).body.items.map((n: { type: string }) => n.type);
+    expect(await bell(mgmt)).toContain('payroll.submitted');
+    expect(await bell(hr)).not.toContain('payroll.submitted'); // the submitter is not told about their own action
     await request(app).post(`/api/payroll/runs/${run._id}/approve`).set(mgmt.auth).expect(200);
+    expect(await bell(hr)).toContain('payroll.decided');
+    expect(await bell(a)).toContain('payslip.ready');
+    expect(await bell(b)).not.toContain('payslip.ready'); // b had no payslip in the run
 
     expect((await Loan.findById(loan._id).lean())?.balance).toBe(800_000);
     // approved => attendance cannot be unlocked and adjustments are closed

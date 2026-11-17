@@ -3,6 +3,7 @@ import type { LeaveRequestInput } from '@cms/shared';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/errors';
 import { datesBetween, monthOf, now, todayStr } from '../../utils/time';
 import { audit } from '../audit/model';
+import { approversOf, employeeName, notify, usersOfEmployees } from '../notifications/service';
 import { AttendanceDay } from '../attendance/model';
 import { dayType } from '../attendance/rules';
 import { applyEvaluation, assertMonthUnlocked } from '../attendance/service';
@@ -90,6 +91,15 @@ export async function applyLeave(employeeId: Id, input: LeaveRequestInput, actor
   const { dates, days } = await validateLeave(employeeId, input);
   const req = await LeaveRequest.create({ ...input, employee: employeeId, days, dates });
   await audit({ actor, action: 'leave.apply', entity: 'LeaveRequest', entityId: req._id, after: { ...input, days } });
+  await notify({
+    type: 'leave.requested',
+    to: await approversOf(employeeId),
+    actor,
+    title: `${await employeeName(employeeId)} applied for leave`,
+    body: `${input.from}${input.to !== input.from ? ` to ${input.to}` : ''} · ${days} day${days === 1 ? '' : 's'}`,
+    link: '/approvals',
+    entity: { kind: 'LeaveRequest', id: req._id },
+  });
   return req;
 }
 
@@ -132,25 +142,35 @@ export async function decideLeave(id: string, decision: 'approved' | 'rejected',
   if (req.status !== 'pending') throw conflict(`Request is already ${req.status}`);
   if (actor.employeeId && String(req.employee) === String(actor.employeeId)) throw forbidden('You cannot approve your own leave');
 
+  let type: LeaveTypeDoc | null = null;
+  const year = Number(req.from.slice(0, 4));
   if (decision === 'approved') {
-    const type = (await LeaveType.findById(req.leaveType).lean()) as LeaveTypeDoc | null;
+    type = (await LeaveType.findById(req.leaveType).lean()) as LeaveTypeDoc | null;
     if (!type) throw badRequest('Leave type no longer exists');
     for (const m of new Set(req.dates.map(monthOf))) await assertMonthUnlocked(`${m}-01`);
-    const year = Number(req.from.slice(0, 4));
     await assertEnoughBalance(req.employee, type, year, req.days, req._id);
-    await syncAttendance(req, type);
-    if (type.paid) {
-      await LeaveBalance.updateOne({ employee: req.employee, leaveType: type._id, year }, { $inc: { used: req.days } }, { upsert: true });
-    }
   }
 
-  req.status = decision;
-  req.decidedBy = actor.id;
-  req.decidedAt = now();
-  req.comment = comment;
-  await req.save();
-  await audit({ actor: actor.id, action: `leave.${decision}`, entity: 'LeaveRequest', entityId: req._id, meta: { comment } });
-  return req;
+  // Take the decision atomically: if two approvers act at the same instant only one gets past this point, and the
+  // other is told it was just decided. The balance and the attendance change only for the one that won.
+  const claimed = await LeaveRequest.findOneAndUpdate({ _id: req._id, status: 'pending' }, { $set: { status: decision, decidedBy: actor.id, decidedAt: now(), comment } }, { new: true });
+  if (!claimed) throw conflict('This request was just decided by someone else');
+
+  if (decision === 'approved' && type) {
+    await syncAttendance(req, type);
+    if (type.paid) await LeaveBalance.updateOne({ employee: req.employee, leaveType: type._id, year }, { $inc: { used: req.days } }, { upsert: true });
+  }
+  await audit({ actor: actor.id, action: `leave.${decision}`, entity: 'LeaveRequest', entityId: claimed._id, meta: { comment } });
+  await notify({
+    type: 'leave.decided',
+    to: await usersOfEmployees([claimed.employee]),
+    actor: actor.id,
+    title: `Your leave was ${decision}`,
+    body: `${claimed.from}${claimed.to !== claimed.from ? ` to ${claimed.to}` : ''}${comment ? ` · ${comment}` : ''}`,
+    link: '/my/leave',
+    entity: { kind: 'LeaveRequest', id: claimed._id },
+  });
+  return claimed;
 }
 
 /**

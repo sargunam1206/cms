@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/lib/auth';
+import { RealtimeProvider } from '@/lib/realtime';
 import { AppRoutes } from '@/routes';
 import './index.css';
 
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <RealtimeProvider>
+            <AppRoutes />
+          </RealtimeProvider>
           <Toaster richColors position="top-right" />
         </AuthProvider>
       </BrowserRouter>

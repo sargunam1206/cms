@@ -7,6 +7,8 @@ import { fmtDate } from '@/lib/utils';
 import { PageHeader, Stat } from '@/components/common/page';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckInWidget } from '@/features/attendance/CheckInWidget';
+import { InsightCards } from '@/features/dashboard/InsightCards';
+import { MyWorkCard } from '@/features/dashboard/MyWorkCard';
 
 interface Dashboard {
   myPending?: { leave: number; regularization: number };
@@ -40,6 +42,8 @@ export function DashboardPage() {
               </CardContent>
             </Card>
           )}
+
+          {can(P.TASKS_SELF) && user?.employee && <MyWorkCard />}
 
           {data?.today && (
             <Card>
@@ -84,6 +88,7 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+      <InsightCards />
     </>
   );
 }

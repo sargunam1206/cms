@@ -166,7 +166,7 @@ function drawPayslip(doc: PDFKit.PDFDocument, slip: SlipDoc, company: CompanyInf
     const sigW = 125;
     const sigX = L + W - sigW; // block sits flush with the right margin
     doc.font('Helvetica').fontSize(9).fillColor('#000').text('With Regards,', sigX, sigY, { width: sigW });
-    const imgH = safeImage(doc, company.signature, sigX, sigY + 16, [110, 34]);
+    const imgH = safeImage(doc, company.signature, sigX, sigY + 16, [85, 26]);
     doc.y = sigY + 16 + (imgH || 16) + 4;
     if (company.signatoryName) doc.font('Helvetica-Bold').fontSize(9).fillColor('#000').text(company.signatoryName, sigX, doc.y, { width: sigW });
     if (company.signatoryTitle) doc.font('Helvetica').fontSize(8.5).fillColor('#333').text(company.signatoryTitle, sigX, doc.y, { width: sigW });

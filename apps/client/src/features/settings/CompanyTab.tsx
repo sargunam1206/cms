@@ -13,7 +13,7 @@ type Company = CompanyProfile & { hasLogo: boolean; hasSignature: boolean };
 const BLANK: CompanyProfile = { name: '', address: '', phone: '', email: '', website: '', gstin: '', pan: '', tan: '', pfRegNo: '', esiRegNo: '', signatoryName: '', signatoryTitle: '' };
 
 /** The API needs the auth header, so images are fetched as blobs rather than used as plain <img src>. */
-function useImage(kind: 'logo' | 'signature', present: boolean, version: number) {
+export function useImage(kind: 'logo' | 'signature', present: boolean, version: number) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let made: string | null = null;

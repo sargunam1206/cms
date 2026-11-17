@@ -9,6 +9,19 @@ import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/PasswordR
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { FnFPage } from '@/features/payroll/FnFPage';
+import { NotificationsPage } from '@/features/notifications/NotificationsPage';
+import { MyTimesheetPage } from '@/features/timesheets/MyTimesheetPage';
+import { TimesheetApprovalsPage } from '@/features/timesheets/TimesheetApprovalsPage';
+import { IdeaPage } from '@/features/ideas/IdeaPage';
+import { IdeasPage } from '@/features/ideas/IdeasPage';
+import { EnquiriesPage } from '@/features/enquiries/EnquiriesPage';
+import { EnquiryPage } from '@/features/enquiries/EnquiryPage';
+import { EstimateReportPage } from '@/features/estimates/EstimateReportPage';
+import { PortfolioTimelinePage } from '@/features/estimates/PortfolioTimelinePage';
+import { ClientsPage } from '@/features/projects/ClientsPage';
+import { MyTasksPage } from '@/features/projects/MyTasksPage';
+import { ProjectPage } from '@/features/projects/ProjectPage';
+import { ProjectsPage } from '@/features/projects/ProjectsPage';
 import { AdjustmentsPage } from '@/features/payroll/AdjustmentsPage';
 import { MyPayslipsPage } from '@/features/payroll/MyPayslipsPage';
 import { PayrollRunPage, PayrollRunsPage } from '@/features/payroll/PayrollRunsPage';
@@ -62,6 +75,19 @@ export function AppRoutes() {
         <Route path="leave/admin" element={<Guard perms={[P.LEAVE_MANAGE]}><LeaveAdminPage /></Guard>} />
         <Route path="employees" element={<Guard perms={[P.EMPLOYEES_VIEW]}><EmployeesPage /></Guard>} />
         <Route path="profile-changes" element={<Guard perms={[P.EMPLOYEES_MANAGE]}><BankChangesPage /></Guard>} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="my/timesheet" element={<Guard perms={[P.TASKS_SELF]}><MyTimesheetPage /></Guard>} />
+        <Route path="timesheets/approvals" element={<Guard perms={[P.LEAVE_APPROVE, P.ATTENDANCE_ALL]}><TimesheetApprovalsPage /></Guard>} />
+        <Route path="my/tasks" element={<Guard perms={[P.TASKS_SELF]}><MyTasksPage /></Guard>} />
+        <Route path="projects" element={<Guard perms={[P.TASKS_SELF, P.PROJECTS_VIEW, P.PROJECTS_MANAGE]}><ProjectsPage /></Guard>} />
+        <Route path="projects/:id" element={<Guard perms={[P.TASKS_SELF, P.PROJECTS_VIEW, P.PROJECTS_MANAGE]}><ProjectPage /></Guard>} />
+        <Route path="estimates/report" element={<Guard perms={[P.ESTIMATES_VIEW]}><EstimateReportPage /></Guard>} />
+        <Route path="timelines" element={<Guard perms={[P.PROJECTS_VIEW]}><PortfolioTimelinePage /></Guard>} />
+        <Route path="ideas" element={<Guard perms={[P.IDEAS_SELF, P.IDEAS_MANAGE]}><IdeasPage /></Guard>} />
+        <Route path="ideas/:id" element={<Guard perms={[P.IDEAS_SELF, P.IDEAS_MANAGE]}><IdeaPage /></Guard>} />
+        <Route path="enquiries" element={<Guard perms={[P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE]}><EnquiriesPage /></Guard>} />
+        <Route path="enquiries/:id" element={<Guard perms={[P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE]}><EnquiryPage /></Guard>} />
+        <Route path="clients" element={<Guard perms={[P.PROJECTS_MANAGE, P.PROJECTS_VIEW]}><ClientsPage /></Guard>} />
         <Route path="my/payslips" element={<MyPayslipsPage />} />
         <Route path="payroll/runs" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollRunsPage /></Guard>} />
         <Route path="payroll/runs/:id" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollRunPage /></Guard>} />
@@ -69,7 +95,7 @@ export function AppRoutes() {
         <Route path="payroll/fnf" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><FnFPage /></Guard>} />
         <Route path="payroll/setup" element={<Guard perms={[P.PAYROLL_VIEW, P.PAYROLL_MANAGE]}><PayrollSetupPage /></Guard>} />
         <Route path="users" element={<Guard perms={[P.USERS_MANAGE, P.ROLES_MANAGE]}><UsersRolesPage /></Guard>} />
-        <Route path="settings" element={<Guard perms={[P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE]}><SettingsPage /></Guard>} />
+        <Route path="settings" element={<Guard perms={[P.SETTINGS_MANAGE, P.HOLIDAYS_MANAGE, P.LEAVE_MANAGE, P.ESTIMATES_VIEW, P.ENQUIRIES_MANAGE]}><SettingsPage /></Guard>} />
         <Route path="audit" element={<Guard perms={[P.AUDIT_VIEW]}><AuditPage /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -6,6 +6,7 @@ import { ah } from '../../utils/asyncHandler';
 import { badRequest, forbidden, notFound } from '../../utils/errors';
 import { now } from '../../utils/time';
 import { audit } from '../audit/model';
+import { employeeName, notify, usersOfEmployees, usersWithPermission } from '../notifications/service';
 import { Employee } from '../employees/model';
 import { BankChangeRequest } from './model';
 
@@ -44,6 +45,7 @@ profileRouter.post(
     await BankChangeRequest.updateMany({ employee: empId, status: 'pending' }, { status: 'cancelled' });
     const doc = await BankChangeRequest.create({ employee: empId, bank: req.body });
     await audit({ actor: req.user!.id, action: 'profile.bank_change_requested', entity: 'BankChangeRequest', entityId: doc._id, after: { ifsc: req.body.ifsc, bankName: req.body.bankName } });
+    await notify({ type: 'bank_change.requested', to: await usersWithPermission(PERMISSIONS.EMPLOYEES_MANAGE), actor: req.user!.id, title: `${await employeeName(empId)} asked to change their bank details`, link: '/profile-changes', entity: { kind: 'BankChangeRequest', id: doc._id } });
     res.status(201).json(doc);
   }),
 );
@@ -83,6 +85,7 @@ profileRouter.post(
     doc.decidedAt = now();
     doc.comment = comment;
     await doc.save();
+    await notify({ type: 'bank_change.decided', to: await usersOfEmployees([doc.employee]), actor: req.user!.id, title: `Your bank detail change was ${decision}`, body: comment, link: '/profile', entity: { kind: 'BankChangeRequest', id: doc._id } });
     res.json(doc);
   }),
 );

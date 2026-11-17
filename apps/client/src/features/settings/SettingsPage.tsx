@@ -23,11 +23,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { CompanyTab } from './CompanyTab';
+import { EnquiryOptionsTab } from './EnquiryOptionsTab';
+import { RateCardTab } from './RateCardTab';
+import { TimesheetRulesTab } from './TimesheetRulesTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function SettingsPage() {
   const { can } = useAuth();
-  const first = can(P.SETTINGS_MANAGE) ? 'company' : can(P.HOLIDAYS_MANAGE) ? 'holidays' : 'leave';
+  const first = can(P.SETTINGS_MANAGE) ? 'company' : can(P.HOLIDAYS_MANAGE) ? 'holidays' : can(P.LEAVE_MANAGE) ? 'leave' : can(P.ESTIMATES_VIEW) ? 'rates' : 'enquiries';
   return (
     <>
       <PageHeader title="Settings" description="Rules here drive attendance and payroll; nothing is hard-coded." />
@@ -35,8 +38,11 @@ export function SettingsPage() {
         <TabsList>
           {can(P.SETTINGS_MANAGE) && <TabsTrigger value="company">Company</TabsTrigger>}
           {can(P.SETTINGS_MANAGE) && <TabsTrigger value="calendar">Work calendar</TabsTrigger>}
+          {can(P.SETTINGS_MANAGE) && <TabsTrigger value="timesheets">Timesheets</TabsTrigger>}
           {can(P.HOLIDAYS_MANAGE) && <TabsTrigger value="holidays">Holidays</TabsTrigger>}
           {can(P.LEAVE_MANAGE) && <TabsTrigger value="leave">Leave types</TabsTrigger>}
+          {can(P.ESTIMATES_VIEW) && <TabsTrigger value="rates">Rate card</TabsTrigger>}
+          {can(P.ENQUIRIES_MANAGE) && <TabsTrigger value="enquiries">Enquiries</TabsTrigger>}
         </TabsList>
         <TabsContent value="company">
           <CompanyTab />
@@ -44,8 +50,17 @@ export function SettingsPage() {
         <TabsContent value="calendar">
           <WorkCalendarForm />
         </TabsContent>
+        <TabsContent value="timesheets">
+          <TimesheetRulesTab />
+        </TabsContent>
         <TabsContent value="holidays">
           <Holidays />
+        </TabsContent>
+        <TabsContent value="enquiries">
+          <EnquiryOptionsTab />
+        </TabsContent>
+        <TabsContent value="rates">
+          <RateCardTab />
         </TabsContent>
         <TabsContent value="leave">
           <LeaveTypes />

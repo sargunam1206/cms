@@ -1,7 +1,9 @@
 import type { Types } from 'mongoose';
+import { PERMISSIONS } from '@cms/shared';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/errors';
 import { lastDayOfMonth, now, todayStr } from '../../utils/time';
 import { audit } from '../audit/model';
+import { notify, usersOfEmployees, usersWithPermission } from '../notifications/service';
 import { isMonthLocked, lockMonth, monthSummariesFor } from '../attendance/service';
 import { Employee } from '../employees/model';
 import { getSetting } from '../settings/service';
@@ -248,6 +250,7 @@ export async function submitRun(runId: string, actor: { id: Id }) {
   if (wf.managementApproval) {
     run.status = 'hr_reviewed';
     await run.save();
+    await notify({ type: 'payroll.submitted', to: await usersWithPermission(PERMISSIONS.PAYROLL_APPROVE), actor: actor.id, title: `Payroll for ${run.month} is waiting for your approval`, body: `${run.totals?.employees ?? 0} payslips`, link: `/payroll/runs/${run._id}`, entity: { kind: 'PayrollRun', id: run._id } });
   } else {
     await finalize(run, actor.id);
   }
@@ -272,6 +275,8 @@ async function finalize(run: InstanceType<typeof PayrollRun>, actor: Id) {
   run.approvedAt = now();
   log(run, 'approved', actor);
   await run.save();
+  const paid = await Payslip.find({ run: run._id }).select('employee').lean();
+  await notify({ type: 'payslip.ready', to: await usersOfEmployees(paid.map((s) => s.employee)), actor, title: `Your payslip for ${run.month} is ready`, link: '/my/payslips', entity: { kind: 'PayrollRun', id: run._id } });
 }
 
 export async function approveRun(runId: string, actor: { id: Id }) {
@@ -280,6 +285,7 @@ export async function approveRun(runId: string, actor: { id: Id }) {
   if (String(run.hrReviewedBy) === String(actor.id)) throw forbidden('The person who reviewed the run cannot also approve it');
   await finalize(run, actor.id);
   await audit({ actor: actor.id as never, action: 'payroll.run_approve', entity: 'PayrollRun', entityId: run._id, meta: { month: run.month, net: run.totals?.net } });
+  await notify({ type: 'payroll.decided', to: run.hrReviewedBy ? [run.hrReviewedBy as never] : [], actor: actor.id, title: `Payroll for ${run.month} was approved`, link: `/payroll/runs/${run._id}`, entity: { kind: 'PayrollRun', id: run._id } });
   return run;
 }
 
@@ -291,6 +297,7 @@ export async function rejectRun(runId: string, actor: { id: Id }, comment: strin
   log(run, 'rejected', actor.id, comment);
   await run.save();
   await audit({ actor: actor.id as never, action: 'payroll.run_reject', entity: 'PayrollRun', entityId: run._id, meta: { month: run.month, comment } });
+  await notify({ type: 'payroll.decided', to: run.hrReviewedBy ? [run.hrReviewedBy as never] : [], actor: actor.id, title: `Payroll for ${run.month} was sent back`, body: comment, link: `/payroll/runs/${run._id}`, entity: { kind: 'PayrollRun', id: run._id } });
   return run;
 }
 
