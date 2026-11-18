@@ -106,12 +106,21 @@ async function main() {
     { upsert: true },
   );
 
-  const adminEmp = await Employee.findOneAndUpdate(
-    { code: 'ADM001' },
-    { $setOnInsert: { code: 'ADM001', name: 'System Admin', email: env.SEED_ADMIN_EMAIL, dateOfJoining: '2024-01-01', department: 'Admin' } },
-    { upsert: true, new: true },
-  );
-  await upsertLogin(env.SEED_ADMIN_EMAIL, env.SEED_ADMIN_PASSWORD, roles.Admin, adminEmp._id);
+  // The admin login lives in the database (password stored hashed). SEED_ADMIN_* are only read to create the very
+  // first admin on a fresh database, and can be removed from .env afterwards.
+  if (await User.exists({ role: roles.Admin })) {
+    logger.info('An admin login already exists; SEED_ADMIN_* are not needed');
+  } else if (!env.SEED_ADMIN_PASSWORD) {
+    logger.warn('No admin login exists yet. Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env once, run the seed, then remove them');
+  } else {
+    const email = env.SEED_ADMIN_EMAIL ?? 'admin@company.local';
+    const adminEmp = await Employee.findOneAndUpdate(
+      { code: 'ADM001' },
+      { $setOnInsert: { code: 'ADM001', name: 'System Admin', email, dateOfJoining: '2024-01-01', department: 'Admin' } },
+      { upsert: true, new: true },
+    );
+    await upsertLogin(email, env.SEED_ADMIN_PASSWORD, roles.Admin, adminEmp._id);
+  }
 
   if (process.argv.includes('--demo')) {
     const ids: Record<string, unknown> = {};

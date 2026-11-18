@@ -20,8 +20,9 @@ const envSchema = z.object({
   // Nightly JSON backup of the database; unset to disable
   BACKUP_DIR: z.string().optional(),
   BACKUP_KEEP: z.coerce.number().default(14),
-  SEED_ADMIN_EMAIL: z.string().email().default('admin@company.local'),
-  SEED_ADMIN_PASSWORD: z.string().min(8).default('Admin@12345'),
+  // Only used to create the first admin on an empty database; the login is kept in the database afterwards
+  SEED_ADMIN_EMAIL: z.string().email().optional(),
+  SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
 export const env = envSchema.parse(process.env);

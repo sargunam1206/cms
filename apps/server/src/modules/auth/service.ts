@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import type { Types } from 'mongoose';
 import { env } from '../../config/env';
 import { PasswordReset, RefreshToken, User } from '../users/model';
+import { logger } from '../../config/logger';
 import { sendMail } from '../../utils/mailer';
 import { audit } from '../audit/model';
 import { badRequest, unauthorized } from '../../utils/errors';
@@ -88,11 +89,12 @@ export async function requestPasswordReset(email: string, ip?: string) {
   await PasswordReset.create({ user: user._id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MIN * 60_000) });
   await audit({ actor: user._id, action: 'auth.password_reset_requested', entity: 'User', entityId: user._id, ip });
   const link = `${env.CLIENT_ORIGIN}/reset-password?token=${token}`;
+  // A mail failure is logged, never shown: an error only for real accounts would reveal which emails have one
   await sendMail(user.email, 'Reset your CMS password', `Use this link within ${RESET_TTL_MIN} minutes to set a new password:
 
 ${link}
 
-If you did not ask for this, ignore this email.`);
+If you did not ask for this, ignore this email.`).catch((err) => logger.error({ err, to: user.email }, 'Password reset email failed'));
 }
 
 export async function resetPassword(token: string, newPassword: string, ip?: string) {
