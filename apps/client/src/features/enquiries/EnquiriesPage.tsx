@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { EnquiryForm } from './EnquiryForm';
 import type { EnquiryRow, Options, Summary } from './types';
 
@@ -31,6 +32,7 @@ export function FollowUp({ e }: { e: EnquiryRow }) {
 }
 
 export function EnquiriesPage() {
+  const [view, setView] = useViewMode('enquiries');
   const { can } = useAuth();
   const nav = useNavigate();
   const sees = can(P.ENQUIRIES_VIEW) || can(P.ENQUIRIES_MANAGE);
@@ -105,44 +107,73 @@ export function EnquiriesPage() {
               </Select>
             )}
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Name</TH>
-                    <TH>Company</TH>
-                    <TH>Status</TH>
-                    <TH>Source</TH>
-                    <TH>Owner</TH>
-                    <TH>Next follow-up</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {!list.data?.items.length && <EmptyRow cols={6} text={list.isLoading ? 'Loading…' : 'No enquiries match'} />}
-                  {list.data?.items.map((e) => (
-                    <TR key={e._id} className="cursor-pointer hover:bg-muted/40" onClick={() => nav(`/enquiries/${e._id}`)}>
-                      <TD>
-                        <Link to={`/enquiries/${e._id}`} className="font-medium hover:underline" onClick={(ev) => ev.stopPropagation()}>
-                          {e.name}
-                        </Link>
-                        <div className="text-xs text-muted-foreground">{e.phone}</div>
-                      </TD>
-                      <TD>{e.company ?? '—'}</TD>
-                      <TD>
-                        <StatusBadge status={e.status} o={o} />
-                      </TD>
-                      <TD>{e.source}</TD>
-                      <TD>{e.owner?.name}</TD>
-                      <TD>
-                        <FollowUp e={e} />
-                      </TD>
+          <>
+            <div className="mb-2 flex justify-end">
+              <ViewToggle mode={view} onChange={setView} />
+            </div>
+            {view === 'list' ? (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Name</TH>
+                      <TH>Company</TH>
+                      <TH>Status</TH>
+                      <TH>Source</TH>
+                      <TH>Owner</TH>
+                      <TH>Next follow-up</TH>
                     </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </THead>
+                  <TBody>
+                    {!list.data?.items.length && <EmptyRow cols={6} text={list.isLoading ? 'Loading…' : 'No enquiries match'} />}
+                    {list.data?.items.map((e) => (
+                      <TR key={e._id} className="cursor-pointer hover:bg-muted/40" onClick={() => nav(`/enquiries/${e._id}`)}>
+                        <TD>
+                          <Link to={`/enquiries/${e._id}`} className="font-medium hover:underline" onClick={(ev) => ev.stopPropagation()}>
+                            {e.name}
+                          </Link>
+                          <div className="text-xs text-muted-foreground">{e.phone}</div>
+                        </TD>
+                        <TD>{e.company ?? '—'}</TD>
+                        <TD>
+                          <StatusBadge status={e.status} o={o} />
+                        </TD>
+                        <TD>{e.source}</TD>
+                        <TD>{e.owner?.name}</TD>
+                        <TD>
+                          <FollowUp e={e} />
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </CardContent>
+            </Card>
+            ) : (
+            <CardGrid
+              items={list.data?.items}
+              empty="No enquiries match."
+              render={(e) => (
+                <Card key={e._id} className="cursor-pointer hover:shadow-md" onClick={() => nav(`/enquiries/${e._id}`)}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{e.name}</div>
+                        <div className="text-xs text-muted-foreground">{e.phone}</div>
+                      </div>
+                      <StatusBadge status={e.status} o={o} />
+                    </div>
+                    <CardLine label="Company">{e.company ?? '—'}</CardLine>
+                    <CardLine label="Source">{e.source}</CardLine>
+                    <CardLine label="Owner">{e.owner?.name}</CardLine>
+                    <CardLine label="Next follow-up"><FollowUp e={e} /></CardLine>
+                  </CardContent>
+                </Card>
+              )}
+            />
+            )}
+          </>
           {list.data && <Pager page={list.data.page} limit={list.data.limit} total={list.data.total} onPage={setPage} />}
         </TabsContent>
 

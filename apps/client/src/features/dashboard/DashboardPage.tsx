@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckInWidget } from '@/features/attendance/CheckInWidget';
 import { InsightCards } from '@/features/dashboard/InsightCards';
 import { MyWorkCard } from '@/features/dashboard/MyWorkCard';
+import { MyMeetingsCard } from '@/features/meetings/MyMeetingsCard';
 
 interface Dashboard {
   myPending?: { leave: number; regularization: number };
@@ -44,6 +45,8 @@ export function DashboardPage() {
           )}
 
           {can(P.TASKS_SELF) && user?.employee && <MyWorkCard />}
+
+          {can(P.MEETINGS_SELF) && user?.employee && <MyMeetingsCard />}
 
           {data?.today && (
             <Card>

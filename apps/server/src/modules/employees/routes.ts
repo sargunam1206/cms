@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { EMPLOYEE_STATUS, PERMISSIONS, employeeSchema } from '@cms/shared';
+import { EMPLOYEE_STATUS, PERMISSIONS, employeeSchema, EMPLOYEE_TYPES } from '@cms/shared';
 import { requirePermission } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { escapeRegex } from '../../utils/regex';
@@ -14,6 +14,7 @@ export const employeesRouter = Router();
 const listQuery = z.object({
   q: z.string().optional(),
   status: z.enum(EMPLOYEE_STATUS).optional(),
+  type: z.enum(EMPLOYEE_TYPES).optional(),
   department: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(50),
@@ -33,9 +34,12 @@ employeesRouter.get(
   requirePermission(PERMISSIONS.EMPLOYEES_VIEW, PERMISSIONS.ATTENDANCE_TEAM),
   validate(listQuery, 'query'),
   ah(async (req, res) => {
-    const { q, status, department, page, limit } = req.query as unknown as z.infer<typeof listQuery>;
+    const { q, status, type, department, page, limit } = req.query as unknown as z.infer<typeof listQuery>;
     const filter: Record<string, unknown> = {};
     if (status) filter.status = status;
+    // records created before interns existed have no type: they are employees
+    if (type === 'employee') filter.type = { $ne: 'intern' };
+    if (type === 'intern') filter.type = 'intern';
     if (department) filter.department = new RegExp(`^${escapeRegex(department)}$`, 'i');
     if (q) {
       const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');

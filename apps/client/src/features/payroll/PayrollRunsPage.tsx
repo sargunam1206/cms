@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { PayslipDialog, type PayslipData } from './PayslipDialog';
 import { inr } from './types';
 
@@ -43,6 +44,7 @@ const STATUS_LABEL: Record<Status, string> = { draft: 'Draft', hr_reviewed: 'Awa
 const statusBadge = (s: Status) => <Badge variant={s === 'approved' ? 'success' : s === 'hr_reviewed' ? 'warning' : 'secondary'}>{STATUS_LABEL[s]}</Badge>;
 
 export function PayrollRunsPage() {
+  const [view, setView] = useViewMode('payroll-runs');
   const nav = useNavigate();
   const { can } = useAuth();
   const runs = useGet<Run[]>(['payroll', 'runs'], '/payroll/runs');
@@ -61,39 +63,67 @@ export function PayrollRunsPage() {
         description="One run per month: compute, HR review, management approval"
         actions={can(P.PAYROLL_MANAGE) && <Button onClick={() => setCreating(true)}><Plus /> New run</Button>}
       />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Month</TH>
-                <TH>Status</TH>
-                <TH>Employees</TH>
-                <TH>Gross</TH>
-                <TH>Net pay</TH>
-                <TH />
-              </TR>
-            </THead>
-            <TBody>
-              {!runs.data?.length && <EmptyRow cols={6} text="No payroll runs yet" />}
-              {runs.data?.map((r) => (
-                <TR key={r._id}>
-                  <TD className="font-medium">{dayjs(`${r.month}-01`).format('MMMM YYYY')}</TD>
-                  <TD>{statusBadge(r.status)}</TD>
-                  <TD>{r.totals?.employees ?? 0}</TD>
-                  <TD className="tabular-nums">{inr(r.totals?.gross ?? 0)}</TD>
-                  <TD className="tabular-nums">{inr(r.totals?.net ?? 0)}</TD>
-                  <TD className="text-right">
-                    <Button asChild size="sm" variant="ghost">
-                      <Link to={`/payroll/runs/${r._id}`}>Open</Link>
-                    </Button>
-                  </TD>
+      <>
+        <div className="mb-2 flex justify-end">
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        {view === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Month</TH>
+                  <TH>Status</TH>
+                  <TH>Employees</TH>
+                  <TH>Gross</TH>
+                  <TH>Net pay</TH>
+                  <TH />
                 </TR>
-              ))}
-            </TBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </THead>
+              <TBody>
+                {!runs.data?.length && <EmptyRow cols={6} text="No payroll runs yet" />}
+                {runs.data?.map((r) => (
+                  <TR key={r._id}>
+                    <TD className="font-medium">{dayjs(`${r.month}-01`).format('MMMM YYYY')}</TD>
+                    <TD>{statusBadge(r.status)}</TD>
+                    <TD>{r.totals?.employees ?? 0}</TD>
+                    <TD className="tabular-nums">{inr(r.totals?.gross ?? 0)}</TD>
+                    <TD className="tabular-nums">{inr(r.totals?.net ?? 0)}</TD>
+                    <TD className="text-right">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={`/payroll/runs/${r._id}`}>Open</Link>
+                      </Button>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+        ) : (
+        <CardGrid
+          items={runs.data}
+          empty="No payroll runs yet."
+          render={(r) => (
+            <Card key={r._id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-medium">{dayjs(`${r.month}-01`).format('MMMM YYYY')}</div>
+                  {statusBadge(r.status)}
+                </div>
+                <CardLine label="Employees">{r.totals?.employees ?? 0}</CardLine>
+                <CardLine label="Gross"><span className="tabular-nums">{inr(r.totals?.gross ?? 0)}</span></CardLine>
+                <CardLine label="Net pay"><span className="font-medium tabular-nums">{inr(r.totals?.net ?? 0)}</span></CardLine>
+                <div className="flex justify-end border-t pt-2">
+                  <Button asChild size="sm" variant="ghost"><Link to={`/payroll/runs/${r._id}`}>Open</Link></Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        />
+        )}
+      </>
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent>
           <DialogHeader>

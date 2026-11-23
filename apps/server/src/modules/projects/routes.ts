@@ -8,12 +8,13 @@ import { badRequest, conflict, forbidden, notFound } from '../../utils/errors';
 import { escapeRegex } from '../../utils/regex';
 import { now, todayStr } from '../../utils/time';
 import { audit } from '../audit/model';
-import { notify, usersOfEmployees } from '../notifications/service';
+import { employeeName, notify, usersOfEmployees } from '../notifications/service';
 import { Employee } from '../employees/model';
-import { assertManage, canManage, canSee, projectForCaller, seesAll } from './access';
+import { assertManage, canEditTask, canManage, canSee, isMember, projectForCaller, seesAll } from './access';
 import { TimeLog } from '../timesheets/model';
 import { Milestone } from '../milestones/model';
 import { removeFilesOfTask } from './files';
+import { ProjectDoc } from './documents';
 import { Client, Project, Task } from './model';
 
 export const projectsRouter = Router();
@@ -182,7 +183,7 @@ projectsRouter.get(
     const stats = (await taskStats([p._id])).get(String(p._id)) ?? { total: 0, done: 0, overdue: 0, estimateHours: 0 };
     const byStatus = Object.fromEntries(TASK_STATUS.map((s) => [s, 0]));
     for (const r of await Task.aggregate([{ $match: { project: p._id } }, { $group: { _id: '$status', n: { $sum: 1 } } }])) byStatus[r._id] = r.n;
-    res.json({ ...full, stats: { ...stats, byStatus }, canManage: canManage(req, p) });
+    res.json({ ...full, stats: { ...stats, byStatus }, canManage: canManage(req, p), canAddTasks: (canManage(req, p) || isMember(req, p)) && !['completed', 'cancelled'].includes(p.status) });
   }),
 );
 
@@ -365,9 +366,12 @@ projectsRouter.post(
   validate(taskSchema),
   ah(async (req, res) => {
     const p = await projectForCaller(req, req.params.id);
-    assertManage(req, p);
+    const manager = canManage(req, p);
+    if (!manager && !isMember(req, p)) throw forbidden('Only the project manager and the project team can add tasks');
     if (['completed', 'cancelled'].includes(p.status)) throw conflict(`This project is ${p.status}; reopen it to add tasks`);
     const body = clean(req.body as z.infer<typeof taskSchema>);
+    // team members add work for themselves (or leave it unassigned); handing work to others is the manager's call
+    if (!manager && body.assignee && String(body.assignee) !== String(req.user!.employeeId)) throw forbidden('You can assign a new task only to yourself; the project manager assigns work to others');
     await assertAssigneeIsMember(p, body.assignee as string | null);
     await assertMilestoneInProject(p._id, body.milestone as string | null);
     const last = await Task.findOne({ project: p._id, status: body.status }).sort({ position: -1 }).select('position').lean();
@@ -380,6 +384,18 @@ projectsRouter.post(
       completedAt: body.status === 'done' ? now() : undefined,
     });
     if (t.assignee) await tellAssigned(req, t, p);
+    await audit({ actor: req.user!.id, action: 'task.create', entity: 'Task', entityId: t._id, meta: { project: p.code, number: t.number, title: t.title } });
+    if (!manager) {
+      await notify({
+        type: 'task.created',
+        to: await usersOfEmployees([p.manager]),
+        actor: req.user!.id,
+        title: `New task in ${p.code}: ${t.title}`,
+        body: `Added by ${await employeeName(req.user!.employeeId)}`,
+        link: `/projects/${p._id}?task=${t._id}`,
+        entity: { kind: 'Task', id: t._id },
+      });
+    }
     res.status(201).json(taskView(t.toObject() as never, p.code));
   }),
 );
@@ -399,7 +415,7 @@ projectsRouter.get(
   ah(async (req, res) => {
     const { t, p } = await taskForCaller(req, req.params.id);
     const full = await Task.findById(t._id).populate('assignee', EMP).lean();
-    res.json({ ...taskView(full as never, p.code), project: { _id: p._id, code: p.code, name: p.name }, canManage: canManage(req, p), isAssignee: String(t.assignee) === String(req.user!.employeeId) });
+    res.json({ ...taskView(full as never, p.code), project: { _id: p._id, code: p.code, name: p.name }, canManage: canManage(req, p), canEdit: canEditTask(req, p, t), isAssignee: String(t.assignee) === String(req.user!.employeeId) });
   }),
 );
 
@@ -410,17 +426,22 @@ projectsRouter.put(
   validate(taskSchema),
   ah(async (req, res) => {
     const { t, p } = await taskForCaller(req, req.params.id);
-    assertManage(req, p);
+    if (!canEditTask(req, p, t)) throw forbidden('Only the project manager, the assignee or the person who created this task can edit it');
     const body = clean(req.body as z.infer<typeof taskSchema>);
+    const next = body.assignee ? String(body.assignee) : '';
+    const before = t.assignee ? String(t.assignee) : '';
+    // a member may keep the assignee, or pick up an unassigned task themselves; anything else is the manager's call
+    if (!canManage(req, p) && next !== before && !(before === '' && next === String(req.user!.employeeId))) throw forbidden('Only the project manager can reassign a task');
     await assertAssigneeIsMember(p, body.assignee as string | null);
     await assertMilestoneInProject(p._id, body.milestone as string | null);
     const wasDone = t.status === 'done';
-    const before = t.assignee ? String(t.assignee) : '';
+    const snapshot = { title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate, estimateHours: t.estimateHours, assignee: before };
     Object.assign(t, body);
     if (t.status === 'done' && !wasDone) t.completedAt = now();
     if (t.status !== 'done') t.completedAt = undefined;
     await t.save();
     if (t.assignee && String(t.assignee) !== before) await tellAssigned(req, t, p);
+    await audit({ actor: req.user!.id, action: 'task.update', entity: 'Task', entityId: t._id, before: snapshot, after: { title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate, estimateHours: t.estimateHours, assignee: t.assignee ? String(t.assignee) : '' }, meta: { project: p.code, number: t.number } });
     res.json(taskView(t.toObject() as never, p.code));
   }),
 );
@@ -437,6 +458,7 @@ projectsRouter.post(
     if (!isAssignee && !canManage(req, p)) throw forbidden('Only the assignee or the project manager can move this task');
     const { status, position } = req.body as z.infer<typeof taskStatusSchema>;
     const wasDone = t.status === 'done';
+    const fromStatus = t.status;
     t.status = status;
     t.completedAt = status === 'done' ? (wasDone ? t.completedAt : now()) : undefined;
 
@@ -448,6 +470,7 @@ projectsRouter.post(
     t.position = at;
     await t.save();
     if (column.length) await Task.bulkWrite(order.map((id, i) => ({ updateOne: { filter: { _id: id }, update: { $set: { position: i } } } })).filter((_, i) => order[i] !== String(t._id)));
+    if (fromStatus !== status) await audit({ actor: req.user!.id, action: 'task.status', entity: 'Task', entityId: t._id, before: { status: fromStatus }, after: { status }, meta: { project: p.code, number: t.number, title: t.title } });
     res.json(taskView(t.toObject() as never, p.code));
   }),
 );
@@ -484,6 +507,7 @@ projectsRouter.delete(
     assertManage(req, p);
     await t.deleteOne();
     await removeFilesOfTask(t._id);
+    await ProjectDoc.updateMany({ task: t._id }, { $set: { task: null } }); // documents stay with the project
     await audit({ actor: req.user!.id, action: 'task.delete', entity: 'Task', entityId: t._id, before: { project: p.code, number: t.number, title: t.title } });
     res.status(204).end();
   }),

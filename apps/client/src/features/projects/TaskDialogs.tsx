@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { useGet, useSend } from '@/api/hooks';
+import { useAuth } from '@/lib/auth';
 import { PendingFiles, TaskFiles, uploadAll } from './TaskFiles';
 import { toast } from 'sonner';
 import { fmtDate } from '@/lib/utils';
@@ -15,7 +16,10 @@ export const PriorityBadge = ({ priority }: { priority: string }) => <Badge vari
 
 const BLANK = { title: '', description: '', assignee: '', status: 'todo', priority: 'medium', estimateHours: '', dueDate: '', milestone: '', estimateModule: '' };
 
-/** Create or edit a task (project managers only). The assignee list is the project's team. */
+/**
+ * Create or edit a task. Managers pick anyone in the team; a team member can only leave it as it is, or take an
+ * unassigned task themselves (the server enforces the same rule).
+ */
 export function TaskFormDialog({ project, task, open, onClose, defaultStatus }: { project: ProjectDetail; task: TaskRow | null; open: boolean; onClose: () => void; defaultStatus?: string }) {
   const [f, setF] = useState(BLANK);
   const [pending, setPending] = useState<File[]>([]);
@@ -25,7 +29,12 @@ export function TaskFormDialog({ project, task, open, onClose, defaultStatus }: 
     if (task) setF({ title: task.title, description: task.description ?? '', assignee: task.assignee?._id ?? '', status: task.status, priority: task.priority, estimateHours: task.estimateHours != null ? String(task.estimateHours) : '', dueDate: task.dueDate ?? '', milestone: task.milestone ?? '', estimateModule: task.estimateModule ?? '' });
     else setF({ ...BLANK, status: defaultStatus ?? 'todo' });
   }, [open, task, defaultStatus]);
-  const team = [project.manager, ...project.members.filter((m) => m._id !== project.manager._id)];
+  const { user } = useAuth();
+  const me = user?.employee?._id;
+  const allTeam = [project.manager, ...project.members.filter((m) => m._id !== project.manager._id)];
+  const current = task?.assignee?._id ?? '';
+  const team = project.canManage ? allTeam : allTeam.filter((m) => m._id === current || (!current && m._id === me));
+  const lockAssignee = !project.canManage && !!current;
   const milestones = useGet<{ items: { _id: string; name: string }[] }>(['milestones', project._id], `/milestones/project/${project._id}`, undefined, open);
   const modules = useGet<string[]>(['estimates', 'modules', project._id], `/estimates/project/${project._id}/modules`, undefined, open);
   const save = useSend<void, { _id: string }>(task ? 'put' : 'post', task ? `/projects/tasks/${task._id}` : `/projects/${project._id}/tasks`, {
@@ -56,8 +65,8 @@ export function TaskFormDialog({ project, task, open, onClose, defaultStatus }: 
             <Textarea rows={3} value={f.description} onChange={set('description')} />
           </Field>
           <Field label="Assignee">
-            <Select value={f.assignee} onChange={set('assignee')}>
-              <option value="">Unassigned</option>
+            <Select value={f.assignee} onChange={set('assignee')} disabled={lockAssignee} title={lockAssignee ? 'Only the project manager can reassign' : undefined}>
+              {!lockAssignee && <option value="">Unassigned</option>}
               {team.map((m) => (
                 <option key={m._id} value={m._id}>
                   {m.name}
@@ -132,6 +141,9 @@ export function TaskFormDialog({ project, task, open, onClose, defaultStatus }: 
  */
 export function TaskDetailDialog({ taskId, onClose, onEdit }: { taskId: string | null; onClose: () => void; onEdit?: (t: TaskRow) => void }) {
   const { data } = useGet<TaskRow>(['projects', 'task', taskId], `/projects/tasks/${taskId}`, undefined, !!taskId);
+  // without an onEdit from the page (e.g. My tasks), the dialog edits the task itself, loading its project for the form
+  const [selfEdit, setSelfEdit] = useState<TaskRow | null>(null);
+  const project = useGet<ProjectDetail>(['projects', 'detail', selfEdit?.project?._id], `/projects/${selfEdit?.project?._id}`, undefined, !!selfEdit?.project?._id);
   const [text, setText] = useState('');
   useEffect(() => setText(''), [taskId]);
   const inv = { invalidate: [['projects']] };
@@ -206,13 +218,15 @@ export function TaskDetailDialog({ taskId, onClose, onEdit }: { taskId: string |
               </div>
             </section>
 
-            {data.canManage && (
+            {(data.canManage || data.canEdit) && (
               <DialogFooter>
-                <Button variant="ghost" onClick={() => confirm('Delete this task?') && del.mutate(undefined)}>
-                  Delete
-                </Button>
-                {onEdit && (
-                  <Button variant="outline" onClick={() => onEdit(data)}>
+                {data.canManage && (
+                  <Button variant="ghost" onClick={() => confirm('Delete this task?') && del.mutate(undefined)}>
+                    Delete
+                  </Button>
+                )}
+                {(data.canEdit || data.canManage) && (
+                  <Button variant="outline" onClick={() => (onEdit ? onEdit(data) : setSelfEdit(data))}>
                     Edit
                   </Button>
                 )}
@@ -221,6 +235,7 @@ export function TaskDetailDialog({ taskId, onClose, onEdit }: { taskId: string |
           </>
         )}
       </DialogContent>
+      {project.data && selfEdit && <TaskFormDialog project={project.data} task={selfEdit} open onClose={() => setSelfEdit(null)} />}
     </Dialog>
   );
 }

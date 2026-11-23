@@ -8,6 +8,8 @@ import { finalizeMissedCheckouts } from '../modules/attendance/service';
 import { notifyFollowUps } from '../modules/enquiries/service';
 import { notifyMilestones } from '../modules/milestones/service';
 import { notifyDueSoon } from '../modules/projects/due';
+import { notifyMeetingReminders } from '../modules/meetings/service';
+import { notifyExpiringDocuments } from '../modules/confidential/service';
 
 export function startJobs() {
   // 00:15 office time: close yesterday's punches that never checked out
@@ -45,6 +47,34 @@ export function startJobs() {
         logger.info({ reminded: await notifyFollowUps() }, 'Enquiry follow-up reminders sent');
       } catch (err) {
         logger.error(err, 'notifyFollowUps failed');
+      }
+    },
+    { timezone: TZ },
+  );
+
+  // Every 5 minutes: remind people of meetings starting within the next 15 minutes (each reminder is sent once)
+  cron.schedule(
+    '*/5 * * * *',
+    async () => {
+      try {
+        const n = await notifyMeetingReminders();
+        if (n) logger.info({ n }, 'Meeting reminders sent');
+      } catch (err) {
+        logger.error(err, 'notifyMeetingReminders failed');
+      }
+    },
+    { timezone: TZ },
+  );
+
+  // 09:00 office time daily: confidential documents due for renewal or review
+  cron.schedule(
+    '0 9 * * *',
+    async () => {
+      try {
+        const n = await notifyExpiringDocuments();
+        if (n) logger.info({ n }, 'Document expiry reminders sent');
+      } catch (err) {
+        logger.error(err, 'notifyExpiringDocuments failed');
       }
     },
     { timezone: TZ },

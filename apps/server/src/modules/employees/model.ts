@@ -1,6 +1,6 @@
 import '../../config/istPlugin';
 import { Schema, model, type InferSchemaType, type Types } from 'mongoose';
-import { EMPLOYEE_STATUS, GENDERS, TAX_REGIMES } from '@cms/shared';
+import { EMPLOYEE_STATUS, EMPLOYEE_TYPES, GENDERS, TAX_REGIMES } from '@cms/shared';
 
 const employeeSchema = new Schema(
   {
@@ -27,6 +27,7 @@ const employeeSchema = new Schema(
     esiApplicable: { type: Boolean, default: false },
     taxRegime: { type: String, enum: TAX_REGIMES, default: 'new' },
     status: { type: String, enum: EMPLOYEE_STATUS, default: 'active', index: true },
+    type: { type: String, enum: EMPLOYEE_TYPES, default: 'employee', index: true }, // interns are managed under Interns and left out of payroll
     exitDate: String,
   },
   { timestamps: true },

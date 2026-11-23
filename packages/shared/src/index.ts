@@ -7,3 +7,6 @@ export * from './projects';
 export * from './notifications';
 export * from './estimates';
 export * from './crm';
+export * from './meetings';
+export * from './confidential';
+export * from './interns';

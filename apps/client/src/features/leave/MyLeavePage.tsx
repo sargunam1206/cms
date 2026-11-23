@@ -14,8 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 
 export function MyLeavePage() {
+  const [view, setView] = useViewMode('my-leave');
   const year = dayjs().year();
   const [editing, setEditing] = useState<LeaveRequest | 'new' | null>(null);
   const balances = useGet<LeaveBalance[]>(['leave', 'balances', 'me'], '/leave/balances/me', { year });
@@ -59,49 +61,81 @@ export function MyLeavePage() {
           <CardTitle className="text-base">My requests</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <THead>
-              <TR>
-                <TH>Type</TH>
-                <TH>From</TH>
-                <TH>To</TH>
-                <TH>Days</TH>
-                <TH>Reason</TH>
-                <TH>Status</TH>
-                <TH />
-              </TR>
-            </THead>
-            <TBody>
-              {!requests.data?.length && <EmptyRow cols={7} />}
-              {requests.data?.map((r) => (
-                <TR key={r._id}>
-                  <TD>{r.leaveType?.code}</TD>
-                  <TD>{fmtDate(r.from)}</TD>
-                  <TD>{fmtDate(r.to)}</TD>
-                  <TD>{r.days}</TD>
-                  <TD className="max-w-xs truncate" title={r.reason}>
-                    {r.reason}
-                    {r.comment && <div className="text-xs text-muted-foreground">Note: {r.comment}</div>}
-                  </TD>
-                  <TD>
-                    <StatusBadge status={r.status} />
-                  </TD>
-                  <TD className="whitespace-nowrap text-right">
-                    {r.status === 'pending' && (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
-                        Edit
-                      </Button>
-                    )}
-                    {(r.status === 'pending' || (r.status === 'approved' && r.from > today)) && (
-                      <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>
-                        Cancel
-                      </Button>
-                    )}
-                  </TD>
+          <>
+            <div className="mb-2 flex justify-end">
+              <ViewToggle mode={view} onChange={setView} />
+            </div>
+            {view === 'list' ? (
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Type</TH>
+                  <TH>From</TH>
+                  <TH>To</TH>
+                  <TH>Days</TH>
+                  <TH>Reason</TH>
+                  <TH>Status</TH>
+                  <TH />
                 </TR>
-              ))}
-            </TBody>
-          </Table>
+              </THead>
+              <TBody>
+                {!requests.data?.length && <EmptyRow cols={7} />}
+                {requests.data?.map((r) => (
+                  <TR key={r._id}>
+                    <TD>{r.leaveType?.code}</TD>
+                    <TD>{fmtDate(r.from)}</TD>
+                    <TD>{fmtDate(r.to)}</TD>
+                    <TD>{r.days}</TD>
+                    <TD className="max-w-xs truncate" title={r.reason}>
+                      {r.reason}
+                      {r.comment && <div className="text-xs text-muted-foreground">Note: {r.comment}</div>}
+                    </TD>
+                    <TD>
+                      <StatusBadge status={r.status} />
+                    </TD>
+                    <TD className="whitespace-nowrap text-right">
+                      {r.status === 'pending' && (
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
+                          Edit
+                        </Button>
+                      )}
+                      {(r.status === 'pending' || (r.status === 'approved' && r.from > today)) && (
+                        <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>
+                          Cancel
+                        </Button>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+            ) : (
+            <CardGrid className="sm:grid-cols-2 xl:grid-cols-3"
+              items={requests.data}
+              empty="No leave requests yet."
+              render={(r) => (
+                <Card key={r._id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">{r.leaveType?.code}</span>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <CardLine label="Dates">{fmtDate(r.from)}{r.to !== r.from && <> – {fmtDate(r.to)}</>}</CardLine>
+                    <CardLine label="Days">{r.days}</CardLine>
+                    {r.reason && <div className="line-clamp-2 text-xs text-muted-foreground">{r.reason}</div>}
+                    {r.comment && <div className="text-xs text-muted-foreground">Note: {r.comment}</div>}
+                    {(r.status === 'pending' || (r.status === 'approved' && r.from > today)) && (
+                      <div className="flex justify-end gap-1 border-t pt-2">
+                        {r.status === 'pending' && <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>Edit</Button>}
+                        <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>Cancel</Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            />
+            )}
+          </>
         </CardContent>
       </Card>
       <LeaveDialog editing={editing} onClose={() => setEditing(null)} />

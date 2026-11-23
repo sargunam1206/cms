@@ -13,6 +13,8 @@ import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EstimateTab } from '@/features/estimates/EstimateTab';
 import { TimelineTab } from '@/features/estimates/TimelineTab';
+import { ProjectMeetings } from '@/features/meetings/ProjectMeetings';
+import { ProjectDocuments } from './ProjectDocuments';
 import { ProjectOverview } from './ProjectOverview';
 import { Progress, ProjectDialog, ProjectStatusBadge } from './ProjectsPage';
 import { TaskBoard } from './TaskBoard';
@@ -65,14 +67,14 @@ export function ProjectPage() {
           <>
             <ProjectStatusBadge status={p.status} />
             {p.canManage && (
-              <>
-                <Button variant="outline" onClick={() => setEditProject(true)}>
-                  <Pencil /> Edit project
-                </Button>
-                <Button onClick={() => setForm({ task: null })}>
-                  <Plus /> New task
-                </Button>
-              </>
+              <Button variant="outline" onClick={() => setEditProject(true)}>
+                <Pencil /> Edit project
+              </Button>
+            )}
+            {p.canAddTasks && (
+              <Button onClick={() => setForm({ task: null })}>
+                <Plus /> New task
+              </Button>
             )}
           </>
         }
@@ -98,6 +100,8 @@ export function ProjectPage() {
           <TabsTrigger value="list">List</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="estimate">Estimate</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="meetings">Meetings</TabsTrigger>
           <TabsTrigger value="team">Team ({team.length})</TabsTrigger>
         </TabsList>
 
@@ -146,7 +150,7 @@ export function ProjectPage() {
         </TabsContent>
 
         <TabsContent value="board">
-          {tasks.data ? <TaskBoard tasks={tasks.data} canManage={p.canManage} onOpen={(t) => setOpen(t._id)} onAdd={(s: TaskStatus) => setForm({ task: null, status: s })} /> : <Spinner />}
+          {tasks.data ? <TaskBoard tasks={tasks.data} canManage={p.canManage} canAdd={!!p.canAddTasks} onOpen={(t) => setOpen(t._id)} onAdd={(s: TaskStatus) => setForm({ task: null, status: s })} /> : <Spinner />}
         </TabsContent>
 
         <TabsContent value="list">
@@ -194,6 +198,14 @@ export function ProjectPage() {
 
         <TabsContent value="estimate">
           <EstimateTab projectId={p._id} />
+        </TabsContent>
+
+        <TabsContent value="documents">
+          <ProjectDocuments projectId={p._id} />
+        </TabsContent>
+
+        <TabsContent value="meetings">
+          <ProjectMeetings projectId={p._id} />
         </TabsContent>
 
         <TabsContent value="team">

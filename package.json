@@ -11,7 +11,9 @@
     "seed:demo": "npm run seed:demo -w @cms/server",
     "test": "npm run test -w @cms/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build": "npm run build -w @cms/client",
+    "start": "npm start -w @cms/server"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

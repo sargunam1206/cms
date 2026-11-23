@@ -38,17 +38,24 @@ export const PERMISSIONS = {
   ENQUIRIES_MANAGE: 'enquiries.manage', // reassign, edit any enquiry, edit the dropdown values
   IDEAS_SELF: 'ideas.self', // submit, vote and comment on ideas
   IDEAS_MANAGE: 'ideas.manage', // move ideas through the pipeline
+  MEETINGS_SELF: 'meetings.self', // schedule meetings and see the ones you organise or attend
+  MEETINGS_MANAGE: 'meetings.manage', // see and edit every meeting
+  CONFIDENTIAL_VIEW: 'confidential.view', // open the confidential documents area (every download is logged)
+  CONFIDENTIAL_MANAGE: 'confidential.manage', // create folders, choose their editors, edit any confidential document
+  INTERNS_MANAGE: 'interns.manage', // add interns, onboarding, documents, stipend, completion; see every intern
+  INTERNS_MENTOR: 'interns.mentor', // mentor interns: allocate them to projects and give and review their work
+  INTERN_SELF: 'intern.self', // an intern's own work board and internship record
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS) as Permission[];
 
-export const ROLE_NAMES = ['Admin', 'HR', 'Management', 'Manager', 'Employee'] as const;
+export const ROLE_NAMES = ['Admin', 'HR', 'Management', 'Manager', 'Employee', 'Intern'] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
 
 const P = PERMISSIONS;
-const SELF: Permission[] = [P.ATTENDANCE_SELF, P.LEAVE_SELF, P.TASKS_SELF, P.IDEAS_SELF];
+const SELF: Permission[] = [P.ATTENDANCE_SELF, P.LEAVE_SELF, P.TASKS_SELF, P.IDEAS_SELF, P.MEETINGS_SELF];
 
 /** Seeded defaults; roles are editable afterwards from the Roles screen. */
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
@@ -71,10 +78,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     P.PROJECTS_VIEW,
     P.ESTIMATES_VIEW,
     P.ENQUIRIES_VIEW,
+    P.MEETINGS_MANAGE,
+    P.CONFIDENTIAL_VIEW,
+    P.INTERNS_MANAGE,
+    P.INTERNS_MENTOR,
   ],
-  Management: [...SELF, P.EMPLOYEES_VIEW, P.ATTENDANCE_TEAM, P.ATTENDANCE_ALL, P.AUDIT_VIEW, P.PAYROLL_VIEW, P.PAYROLL_APPROVE, P.PROJECTS_VIEW, P.PROJECTS_MANAGE, P.ESTIMATES_VIEW, P.ESTIMATES_MANAGE, P.ESTIMATES_APPROVE, P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE, P.IDEAS_MANAGE],
-  Manager: [...SELF, P.ATTENDANCE_TEAM, P.REGULARIZATION_APPROVE, P.LEAVE_APPROVE, P.PROJECTS_MANAGE, P.ESTIMATES_MANAGE, P.ENQUIRIES_SELF],
+  Management: [...SELF, P.EMPLOYEES_VIEW, P.ATTENDANCE_TEAM, P.ATTENDANCE_ALL, P.AUDIT_VIEW, P.PAYROLL_VIEW, P.PAYROLL_APPROVE, P.PROJECTS_VIEW, P.PROJECTS_MANAGE, P.ESTIMATES_VIEW, P.ESTIMATES_MANAGE, P.ESTIMATES_APPROVE, P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE, P.IDEAS_MANAGE, P.MEETINGS_MANAGE, P.CONFIDENTIAL_VIEW, P.CONFIDENTIAL_MANAGE, P.INTERNS_MANAGE, P.INTERNS_MENTOR],
+  Manager: [...SELF, P.ATTENDANCE_TEAM, P.REGULARIZATION_APPROVE, P.LEAVE_APPROVE, P.PROJECTS_MANAGE, P.ESTIMATES_MANAGE, P.ENQUIRIES_SELF, P.INTERNS_MENTOR],
   Employee: [...SELF, P.ENQUIRIES_SELF], // anyone can log a sales lead; they only ever see their own
+  // interns: attendance, leave, timesheet, meetings, ideas, their own sales leads and their work board; no payroll
+  Intern: [...SELF, P.INTERN_SELF, P.ENQUIRIES_SELF],
 };
 
 /** Permissions introduced in Phase 3. The seed adds them (once) to existing roles that should have them by default. */
@@ -85,3 +98,12 @@ export const PHASE4_PERMISSIONS: Permission[] = [P.ESTIMATES_VIEW, P.ESTIMATES_M
 
 /** Permissions introduced in Phase 5, added once to existing roles by the seed. */
 export const PHASE5_PERMISSIONS: Permission[] = [P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE, P.IDEAS_SELF, P.IDEAS_MANAGE];
+
+/** Meeting tracker permissions, added once to existing roles by the seed. */
+export const MEETING_PERMISSIONS: Permission[] = [P.MEETINGS_SELF, P.MEETINGS_MANAGE];
+
+/** Confidential documents permissions, added once to existing roles by the seed. */
+export const CONFIDENTIAL_PERMISSIONS: Permission[] = [P.CONFIDENTIAL_VIEW, P.CONFIDENTIAL_MANAGE];
+
+/** Intern permissions, added once to existing roles by the seed. */
+export const INTERN_PERMISSIONS: Permission[] = [P.INTERNS_MANAGE, P.INTERNS_MENTOR, P.INTERN_SELF];

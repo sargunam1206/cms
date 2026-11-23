@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 
 interface Row {
   employee: EmployeeRef;
@@ -19,6 +20,7 @@ interface Row {
 }
 
 export function LeaveAdminPage() {
+  const [view, setView] = useViewMode('leave-admin');
   const [year, setYear] = useState(dayjs().year());
   const [status, setStatus] = useState('');
   const [adjust, setAdjust] = useState<{ employee: EmployeeRef; balance: LeaveBalance } | null>(null);
@@ -86,40 +88,67 @@ export function LeaveAdminPage() {
           {rows.isLoading ? (
             <Spinner />
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH>Employee</TH>
-                      {types.map((t) => (
-                        <TH key={t._id} className="text-right">
-                          {t.code}
-                        </TH>
-                      ))}
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {!rows.data?.length && <EmptyRow cols={types.length + 1} />}
-                    {rows.data?.map((r) => (
-                      <TR key={r.employee._id}>
-                        <TD>
-                          {r.employee.name} <span className="text-muted-foreground">({r.employee.code})</span>
-                        </TD>
-                        {r.balances.map((b) => (
-                          <TD key={b.leaveType._id} className="text-right">
-                            <button className="hover:underline" title="Click to adjust" onClick={() => setAdjust({ employee: r.employee, balance: b })}>
-                              <span className="font-medium">{b.available}</span>
-                              <span className="text-xs text-muted-foreground"> / used {b.used}</span>
-                            </button>
-                          </TD>
+            <>
+              <div className="mb-2 flex justify-end">
+                <ViewToggle mode={view} onChange={setView} />
+              </div>
+              {view === 'list' ? (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>Employee</TH>
+                        {types.map((t) => (
+                          <TH key={t._id} className="text-right">
+                            {t.code}
+                          </TH>
                         ))}
                       </TR>
-                    ))}
-                  </TBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </THead>
+                    <TBody>
+                      {!rows.data?.length && <EmptyRow cols={types.length + 1} />}
+                      {rows.data?.map((r) => (
+                        <TR key={r.employee._id}>
+                          <TD>
+                            {r.employee.name} <span className="text-muted-foreground">({r.employee.code})</span>
+                          </TD>
+                          {r.balances.map((b) => (
+                            <TD key={b.leaveType._id} className="text-right">
+                              <button className="hover:underline" title="Click to adjust" onClick={() => setAdjust({ employee: r.employee, balance: b })}>
+                                <span className="font-medium">{b.available}</span>
+                                <span className="text-xs text-muted-foreground"> / used {b.used}</span>
+                              </button>
+                            </TD>
+                          ))}
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </CardContent>
+              </Card>
+              ) : (
+              <CardGrid
+                items={rows.data}
+                empty="No employees."
+                render={(r) => (
+                  <Card key={r.employee._id}>
+                    <CardContent className="space-y-2 p-4">
+                      <div className="font-medium">{r.employee.name} <span className="text-xs font-normal text-muted-foreground">({r.employee.code})</span></div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {r.balances.map((b) => (
+                          <button key={b.leaveType._id} className="rounded-md border p-2 text-left hover:bg-accent" title="Click to adjust" onClick={() => setAdjust({ employee: r.employee, balance: b })}>
+                            <div className="text-xs text-muted-foreground">{b.leaveType.code}</div>
+                            <div className="font-semibold">{b.available} <span className="text-xs font-normal text-muted-foreground">left · used {b.used}</span></div>
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              />
+              )}
+            </>
           )}
         </TabsContent>
         <TabsContent value="requests">
@@ -133,45 +162,75 @@ export function LeaveAdminPage() {
               ))}
             </Select>
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Employee</TH>
-                    <TH>Type</TH>
-                    <TH>Dates</TH>
-                    <TH>Days</TH>
-                    <TH>Status</TH>
-                    <TH />
-                  </TR>
-                </THead>
-                <TBody>
-                  {!requests.data?.items.length && <EmptyRow cols={6} />}
-                  {requests.data?.items.map((r) => (
-                    <TR key={r._id}>
-                      <TD>{typeof r.employee === 'string' ? r.employee : `${r.employee.name} (${r.employee.code})`}</TD>
-                      <TD>{r.leaveType?.code}</TD>
-                      <TD>
-                        {fmtDate(r.from)} – {fmtDate(r.to)}
-                      </TD>
-                      <TD>{r.days}</TD>
-                      <TD>
-                        <StatusBadge status={r.status} />
-                      </TD>
-                      <TD className="text-right">
-                        {['pending', 'approved'].includes(r.status) && (
-                          <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>
-                            Cancel
-                          </Button>
-                        )}
-                      </TD>
+          <>
+            <div className="mb-2 flex justify-end">
+              <ViewToggle mode={view} onChange={setView} />
+            </div>
+            {view === 'list' ? (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Employee</TH>
+                      <TH>Type</TH>
+                      <TH>Dates</TH>
+                      <TH>Days</TH>
+                      <TH>Status</TH>
+                      <TH />
                     </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </THead>
+                  <TBody>
+                    {!requests.data?.items.length && <EmptyRow cols={6} />}
+                    {requests.data?.items.map((r) => (
+                      <TR key={r._id}>
+                        <TD>{typeof r.employee === 'string' ? r.employee : `${r.employee.name} (${r.employee.code})`}</TD>
+                        <TD>{r.leaveType?.code}</TD>
+                        <TD>
+                          {fmtDate(r.from)} – {fmtDate(r.to)}
+                        </TD>
+                        <TD>{r.days}</TD>
+                        <TD>
+                          <StatusBadge status={r.status} />
+                        </TD>
+                        <TD className="text-right">
+                          {['pending', 'approved'].includes(r.status) && (
+                            <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>
+                              Cancel
+                            </Button>
+                          )}
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </CardContent>
+            </Card>
+            ) : (
+            <CardGrid
+              items={requests.data?.items}
+              empty="No requests."
+              render={(r) => (
+                <Card key={r._id}>
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-medium">{typeof r.employee === 'string' ? r.employee : `${r.employee.name} (${r.employee.code})`}</div>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <CardLine label="Type">{r.leaveType?.code}</CardLine>
+                    <CardLine label="Dates">{fmtDate(r.from)} – {fmtDate(r.to)}</CardLine>
+                    <CardLine label="Days">{r.days}</CardLine>
+                    {['pending', 'approved'].includes(r.status) && (
+                      <div className="flex justify-end border-t pt-2">
+                        <Button size="sm" variant="ghost" onClick={() => cancel.mutate(r._id)}>Cancel</Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            />
+            )}
+          </>
           {requests.data && <Pager page={requests.data.page} limit={requests.data.limit} total={requests.data.total} onPage={setReqPage} />}
         </TabsContent>
       </Tabs>

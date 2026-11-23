@@ -126,6 +126,7 @@ export async function computeRun(runId: string, actor: Id) {
   const statutory = await getStatutory(last);
 
   const employees = await Employee.find({
+    type: { $ne: 'intern' }, // interns get a stipend, tracked under Interns, not a payslip
     dateOfJoining: { $lte: last },
     $or: [{ exitDate: null }, { exitDate: { $exists: false } }, { exitDate: '' }, { exitDate: { $gte: first } }],
   }).lean();

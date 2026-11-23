@@ -33,6 +33,22 @@ export async function projectForCaller(req: Request, id: string) {
   return p;
 }
 
+/** Works on this project: its manager or one of its members (not just someone who can see every project). */
+export function isMember(req: Request, p: ProjectLike) {
+  const me = req.user?.employeeId;
+  return same(p.manager, me) || (p.members ?? []).some((m) => same(m, me));
+}
+
+/**
+ * May change this task's details: the project manager, or a member who is its assignee or created it.
+ * Reassigning to someone else stays with the manager (checked where the assignee changes).
+ */
+export function canEditTask(req: Request, p: ProjectLike, t: { assignee?: unknown; reporter?: unknown }) {
+  if (canManage(req, p)) return true;
+  if (!isMember(req, p)) return false;
+  return same(t.assignee, req.user?.employeeId) || same(t.reporter, req.user?.id);
+}
+
 export function assertManage(req: Request, p: ProjectLike) {
   if (!canManage(req, p)) throw forbidden('Only the project manager can do that');
 }

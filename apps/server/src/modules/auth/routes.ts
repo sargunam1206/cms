@@ -90,7 +90,7 @@ authRouter.get(
   authenticate,
   ah(async (req, res) => {
     const u = req.user!;
-    const employee = u.employeeId ? await Employee.findById(u.employeeId).select('code name designation department').lean() : null;
+    const employee = u.employeeId ? await Employee.findById(u.employeeId).select('code name designation department type').lean() : null;
     res.json({
       id: u.id,
       email: u.email,

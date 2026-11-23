@@ -28,7 +28,7 @@ const FIXED_COLS = 3; // Emp code, Name, Effective from
 /** Blank sheet pre-filled with every active employee's current salary, one column per component. */
 export async function salaryTemplate() {
   const comps = await SalaryComponent.find({ active: true }).sort({ order: 1, code: 1 }).lean();
-  const emps = await Employee.find({ status: { $ne: 'exited' } }).sort({ code: 1 }).lean();
+  const emps = await Employee.find({ status: { $ne: 'exited' }, type: { $ne: 'intern' } }).sort({ code: 1 }).lean();
   const first = dayjs(todayStr()).startOf('month').format('YYYY-MM-DD');
 
   const wb = new ExcelJS.Workbook();
@@ -89,7 +89,7 @@ export async function parseSalarySheet(buffer: Buffer): Promise<RowResult[]> {
   if (bad.length) throw new Error(`Unrecognised column heading(s): ${bad.map((b) => b.h).join(', ')}`);
   if (!compCols.length) throw new Error('No salary component columns found');
 
-  const emps = new Map((await Employee.find({ status: { $ne: 'exited' } }).select('code name').lean()).map((e) => [e.code.toUpperCase(), e]));
+  const emps = new Map((await Employee.find({ status: { $ne: 'exited' }, type: { $ne: 'intern' } }).select('code name').lean()).map((e) => [e.code.toUpperCase(), e]));
   const known = new Set((await SalaryComponent.find({ active: true }).select('code').lean()).map((c) => c.code));
   const seen = new Set<string>();
   const results: RowResult[] = [];

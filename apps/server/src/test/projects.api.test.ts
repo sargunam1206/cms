@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app, connectTestDb, createPerson, dropTestDb, seedRoles } from './helpers';
+import { Notification } from '../modules/notifications/model';
+import { User } from '../modules/users/model';
 
 let roles: Awaited<ReturnType<typeof seedRoles>>;
 beforeAll(async () => {
@@ -93,14 +95,14 @@ describe('tasks', () => {
   const newTask = (s: Awaited<ReturnType<typeof setup>>, who: Person, extra: object = {}) =>
     request(app).post(`/api/projects/${s.project._id}/tasks`).set(who.auth).send({ title: 'Design login page', priority: 'high', ...extra });
 
-  it('only the project manager creates tasks; numbering is per project; assignees must be members', async () => {
+  it('the manager and team members create tasks; numbering is per project; assignees must be members', async () => {
     const s = await setup();
-    await newTask(s, s.dev).expect(403);
     await newTask(s, s.outsider).expect(404);
     const a = (await newTask(s, s.lead, { assignee: id(s.dev), dueDate: '2026-11-20', estimateHours: 6 }).expect(201)).body;
     const b = (await newTask(s, s.lead, { title: 'Write API tests' }).expect(201)).body;
     expect([a.number, b.number]).toEqual([1, 2]);
     expect(a.ref).toBe(`${s.code}-1`);
+    await newTask(s, s.dev, { title: 'Found a bug on login' }).expect(201); // a member may add work too
     await newTask(s, s.lead, { assignee: id(s.outsider) }).expect(400); // not a member
     await newTask(s, s.mgmt, { title: 'Added by Management' }).expect(201);
     await newTask(s, s.lead, { title: 'x' }).expect(400); // too short
@@ -109,6 +111,31 @@ describe('tasks', () => {
     const burst = await Promise.all(Array.from({ length: 8 }, (_, i) => newTask(s, s.lead, { title: `Parallel task ${i}` })));
     const numbers = burst.map((r) => r.body.number);
     expect(new Set(numbers).size).toBe(8);
+  });
+
+  it('team members add tasks for themselves only, edit their own or assigned tasks, and cannot reassign or delete', async () => {
+    const s = await setup();
+    await newTask(s, s.dev, { title: 'For someone else', assignee: id(s.dev2) }).expect(403);
+    const mine = (await newTask(s, s.dev, { title: 'My own task', assignee: id(s.dev) }).expect(201)).body;
+    const open = (await newTask(s, s.dev, { title: 'Unassigned idea' }).expect(201)).body;
+    const leadTask = (await newTask(s, s.lead, { title: 'Lead task for dev2', assignee: id(s.dev2) }).expect(201)).body;
+    const lead = await User.findOne({ employee: s.lead.employee._id });
+    expect(await Notification.countDocuments({ user: lead!._id, type: 'task.created' })).toBe(2); // the lead hears about members' new tasks
+
+    const put = (who: Person, t: { _id: string }, body: object) => request(app).put(`/api/projects/tasks/${t._id}`).set(who.auth).send({ title: 'Edited title', priority: 'urgent', ...body });
+    await put(s.dev, mine, { assignee: id(s.dev), description: 'More detail', dueDate: '2026-12-01' }).expect(200);
+    await put(s.dev, leadTask, { assignee: id(s.dev2) }).expect(403); // neither assignee nor creator
+    await put(s.dev2, leadTask, { assignee: id(s.dev2), estimateHours: 5 }).expect(200); // assignee may edit details
+    await put(s.dev2, leadTask, { assignee: id(s.dev) }).expect(403); // but not hand it over
+    await put(s.dev2, open, { assignee: id(s.dev2) }).expect(403); // not theirs to edit
+    await put(s.dev, open, { assignee: id(s.dev) }).expect(200); // the creator picks up an unassigned task
+    await put(s.lead, mine, { assignee: id(s.dev2) }).expect(200); // the manager can reassign
+
+    const detail = (await request(app).get(`/api/projects/tasks/${leadTask._id}`).set(s.dev2.auth).expect(200)).body;
+    expect(detail.canEdit).toBe(true);
+    expect(detail.canManage).toBe(false);
+    await request(app).delete(`/api/projects/tasks/${leadTask._id}`).set(s.dev2.auth).expect(403);
+    expect((await request(app).get(`/api/projects/${s.project._id}`).set(s.dev.auth).expect(200)).body.canAddTasks).toBe(true);
   });
 
   it('assignees move their own cards; others cannot; done sets completion; dropping reorders the column', async () => {

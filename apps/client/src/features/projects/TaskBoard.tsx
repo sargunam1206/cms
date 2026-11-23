@@ -11,7 +11,7 @@ import { TASK_STATUSES, isOverdue, type TaskRow, type TaskStatus } from './types
 const initials = (name?: string) => (name ?? '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
 /** Kanban board. Cards can be dragged by the assignee or a project manager; dropping on a card puts it above that card. */
-export function TaskBoard({ tasks, canManage, onOpen, onAdd }: { tasks: TaskRow[]; canManage: boolean; onOpen: (t: TaskRow) => void; onAdd: (status: TaskStatus) => void }) {
+export function TaskBoard({ tasks, canManage, canAdd = canManage, onOpen, onAdd }: { tasks: TaskRow[]; canManage: boolean; canAdd?: boolean; onOpen: (t: TaskRow) => void; onAdd: (status: TaskStatus) => void }) {
   const { user } = useAuth();
   const me = user?.employee?._id;
   const [dragging, setDragging] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function TaskBoard({ tasks, canManage, onOpen, onAdd }: { tasks: TaskRow[
               <h3 className="text-sm font-semibold">
                 {col.label} <span className="ml-1 text-xs font-normal text-muted-foreground">{items.length}</span>
               </h3>
-              {canManage && (
+              {canAdd && (
                 <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={`Add task to ${col.label}`} onClick={() => onAdd(col.value)}>
                   <Plus />
                 </Button>

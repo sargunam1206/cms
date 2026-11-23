@@ -92,3 +92,23 @@ export type TimeLogInput = z.infer<typeof timeLogSchema>;
 export const weekQuerySchema = z.object({ start: dateStrict.optional(), employee: objectId.optional() });
 export const submitWeekSchema = z.object({ weekStart: dateStrict });
 export const timesheetDecisionSchema = z.object({ decision: z.enum(['approved', 'rejected']), comment: z.string().trim().max(500).optional() });
+
+/** Kinds of project document, for grouping and filtering. */
+export const PROJECT_DOC_CATEGORIES = ['brief', 'requirement', 'design', 'drawing', 'contract', 'quotation', 'report', 'minutes', 'other'] as const;
+export const PROJECT_DOC_CATEGORY_LABEL: Record<(typeof PROJECT_DOC_CATEGORIES)[number], string> = {
+  brief: 'Brief / explanation',
+  requirement: 'Requirements',
+  design: 'Design',
+  drawing: 'Drawing',
+  contract: 'Contract / agreement',
+  quotation: 'Quotation / estimate',
+  report: 'Report',
+  minutes: 'Minutes',
+  other: 'Other',
+};
+export const projectDocSchema = z.object({
+  title: z.string().trim().min(2, 'Give the document a title').max(150),
+  category: z.enum(PROJECT_DOC_CATEGORIES).default('other'),
+  description: z.string().trim().max(1000).optional().or(z.literal('')),
+  task: z.string().regex(/^[a-f\d]{24}$/i).nullable().optional().or(z.literal('')),
+});

@@ -5,7 +5,7 @@ export interface Me {
   email: string;
   role: string;
   permissions: Permission[];
-  employee: { _id: string; code: string; name: string; designation?: string; department?: string } | null;
+  employee: { _id: string; code: string; name: string; designation?: string; department?: string; type?: 'employee' | 'intern' } | null;
 }
 
 export interface EmployeeRef {

@@ -17,8 +17,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 
 export function EmployeesPage() {
+  const [view, setView] = useViewMode('employees');
   const { can } = useAuth();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('active');
@@ -30,7 +32,7 @@ export function EmployeesPage() {
   const departments = useGet<string[]>(['employees', 'departments'], '/employees/departments');
   const LIMIT = 50;
   const [editing, setEditing] = useState<Employee | 'new' | null>(null);
-  const { data } = useGet<Paged<Employee>>(['employees'], '/employees', { q: dq || undefined, status: status || undefined, department: department || undefined, page, limit: LIMIT });
+  const { data } = useGet<Paged<Employee>>(['employees'], '/employees', { type: 'employee', q: dq || undefined, status: status || undefined, department: department || undefined, page, limit: LIMIT });
 
   return (
     <>
@@ -74,60 +76,107 @@ export function EmployeesPage() {
           ))}
         </Select>
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Code</TH>
-                <TH>Name</TH>
-                <TH>Department</TH>
-                <TH>Designation</TH>
-                <TH>Manager</TH>
-                <TH>Joined</TH>
-                <TH>Status</TH>
-                <TH />
-              </TR>
-            </THead>
-            <TBody>
-              {!data?.items.length && <EmptyRow cols={8} />}
-              {data?.items.map((e) => (
-                <TR key={e._id}>
-                  <TD className="font-mono text-xs">{e.code}</TD>
-                  <TD className="font-medium">
-                    {e.name}
-                    <div className="text-xs font-normal text-muted-foreground">{e.email}</div>
-                  </TD>
-                  <TD>{e.department}</TD>
-                  <TD>{e.designation}</TD>
-                  <TD>{e.manager?.name ?? '—'}</TD>
-                  <TD>{fmtDate(e.dateOfJoining)}</TD>
-                  <TD>
-                    <StatusBadge status={e.status} />
-                  </TD>
-                  <TD className="whitespace-nowrap text-right">
-                    {can(P.ATTENDANCE_ALL) && (
-                      <Button asChild size="sm" variant="ghost">
-                        <Link to={`/attendance/employee/${e._id}`}>Attendance</Link>
-                      </Button>
-                    )}
-                    {can(P.PAYROLL_VIEW, P.PAYROLL_MANAGE) && (
-                      <Button size="sm" variant="ghost" onClick={() => setSalaryFor(e)}>
-                        Salary
-                      </Button>
-                    )}
-                    {can(P.EMPLOYEES_MANAGE) && (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>
-                        Edit
-                      </Button>
-                    )}
-                  </TD>
+      <>
+        <div className="mb-2 flex justify-end">
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        {view === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Code</TH>
+                  <TH>Name</TH>
+                  <TH>Department</TH>
+                  <TH>Designation</TH>
+                  <TH>Manager</TH>
+                  <TH>Joined</TH>
+                  <TH>Status</TH>
+                  <TH />
                 </TR>
-              ))}
-            </TBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </THead>
+              <TBody>
+                {!data?.items.length && <EmptyRow cols={8} />}
+                {data?.items.map((e) => (
+                  <TR key={e._id}>
+                    <TD className="font-mono text-xs">{e.code}</TD>
+                    <TD className="font-medium">
+                      {e.name}
+                      <div className="text-xs font-normal text-muted-foreground">{e.email}</div>
+                    </TD>
+                    <TD>{e.department}</TD>
+                    <TD>{e.designation}</TD>
+                    <TD>{e.manager?.name ?? '—'}</TD>
+                    <TD>{fmtDate(e.dateOfJoining)}</TD>
+                    <TD>
+                      <StatusBadge status={e.status} />
+                    </TD>
+                    <TD className="whitespace-nowrap text-right">
+                      {can(P.ATTENDANCE_ALL) && (
+                        <Button asChild size="sm" variant="ghost">
+                          <Link to={`/attendance/employee/${e._id}`}>Attendance</Link>
+                        </Button>
+                      )}
+                      {can(P.PAYROLL_VIEW, P.PAYROLL_MANAGE) && (
+                        <Button size="sm" variant="ghost" onClick={() => setSalaryFor(e)}>
+                          Salary
+                        </Button>
+                      )}
+                      {can(P.EMPLOYEES_MANAGE) && (
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>
+                          Edit
+                        </Button>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+        ) : (
+        <CardGrid
+          items={data?.items}
+          empty="No employees match."
+          render={(e) => (
+            <Card key={e._id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{e.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{e.designation || '—'}</div>
+                  </div>
+                  <StatusBadge status={e.status} />
+                </div>
+                <CardLine label="Code"><span className="font-mono">{e.code}</span></CardLine>
+                <CardLine label="Department">{e.department || '—'}</CardLine>
+                <CardLine label="Manager">{e.manager?.name ?? '—'}</CardLine>
+                <CardLine label="Joined">{fmtDate(e.dateOfJoining)}</CardLine>
+                {e.email && <CardLine label="Email">{e.email}</CardLine>}
+                <div className="flex flex-wrap justify-end gap-1 border-t pt-2">
+                  {can(P.ATTENDANCE_ALL) && (
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to={`/attendance/employee/${e._id}`}>Attendance</Link>
+                    </Button>
+                  )}
+                  {can(P.PAYROLL_VIEW, P.PAYROLL_MANAGE) && (
+                    <Button size="sm" variant="ghost" onClick={() => setSalaryFor(e)}>
+                      Salary
+                    </Button>
+                  )}
+                  {can(P.EMPLOYEES_MANAGE) && (
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>
+                      Edit
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        />
+        )}
+      </>
       {data && data.total > LIMIT && (
         <div className="mt-3 flex items-center justify-end gap-2 text-sm">
           <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>

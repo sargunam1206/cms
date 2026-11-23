@@ -10,11 +10,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import type { ClientRow } from './types';
 
 const BLANK = { name: '', contactName: '', email: '', phone: '', address: '', gstin: '', notes: '', active: true };
 
 export function ClientsPage() {
+  const [view, setView] = useViewMode('clients');
   const { can } = useAuth();
   const { data } = useGet<ClientRow[]>(['projects', 'clients'], '/projects/clients');
   const [editing, setEditing] = useState<ClientRow | 'new' | null>(null);
@@ -26,41 +28,71 @@ export function ClientsPage() {
         description="Companies you do project work for"
         actions={canEdit && <Button onClick={() => setEditing('new')}><Plus /> Add client</Button>}
       />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Name</TH>
-                <TH>Contact</TH>
-                <TH>Email</TH>
-                <TH>GSTIN</TH>
-                <TH>Status</TH>
-                <TH />
-              </TR>
-            </THead>
-            <TBody>
-              {!data?.length && <EmptyRow cols={6} text="No clients yet" />}
-              {data?.map((c) => (
-                <TR key={c._id}>
-                  <TD className="font-medium">{c.name}</TD>
-                  <TD>{c.contactName}</TD>
-                  <TD>{c.email}</TD>
-                  <TD className="font-mono text-xs">{c.gstin}</TD>
-                  <TD>{c.active ? <Badge variant="success">active</Badge> : <Badge variant="secondary">inactive</Badge>}</TD>
-                  <TD className="text-right">
-                    {canEdit && (
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
-                        Edit
-                      </Button>
-                    )}
-                  </TD>
+      <>
+        <div className="mb-2 flex justify-end">
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        {view === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Name</TH>
+                  <TH>Contact</TH>
+                  <TH>Email</TH>
+                  <TH>GSTIN</TH>
+                  <TH>Status</TH>
+                  <TH />
                 </TR>
-              ))}
-            </TBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </THead>
+              <TBody>
+                {!data?.length && <EmptyRow cols={6} text="No clients yet" />}
+                {data?.map((c) => (
+                  <TR key={c._id}>
+                    <TD className="font-medium">{c.name}</TD>
+                    <TD>{c.contactName}</TD>
+                    <TD>{c.email}</TD>
+                    <TD className="font-mono text-xs">{c.gstin}</TD>
+                    <TD>{c.active ? <Badge variant="success">active</Badge> : <Badge variant="secondary">inactive</Badge>}</TD>
+                    <TD className="text-right">
+                      {canEdit && (
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                          Edit
+                        </Button>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+        ) : (
+        <CardGrid
+          items={data}
+          empty="No clients yet."
+          render={(c) => (
+            <Card key={c._id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="truncate font-medium">{c.name}</div>
+                  {c.active ? <Badge variant="success">active</Badge> : <Badge variant="secondary">inactive</Badge>}
+                </div>
+                <CardLine label="Contact">{c.contactName || '—'}</CardLine>
+                <CardLine label="Email">{c.email || '—'}</CardLine>
+                <CardLine label="GSTIN"><span className="font-mono">{c.gstin || '—'}</span></CardLine>
+                {canEdit && (
+                  <div className="flex justify-end border-t pt-2">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>Edit</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        />
+        )}
+      </>
       <ClientDialog editing={editing} onClose={() => setEditing(null)} />
     </>
   );

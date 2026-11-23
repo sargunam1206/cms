@@ -25,6 +25,11 @@ import {
   GanttChart,
   Target,
   Lightbulb,
+  CalendarClock,
+  FileLock2,
+  Radar,
+  GraduationCap,
+  BookOpenCheck,
   FileBarChart,
   ListChecks,
   Briefcase,
@@ -45,6 +50,8 @@ import { NotificationBell } from './NotificationBell';
 interface NavItem {
   to: string;
   label: string;
+  /** Hidden from interns (they get a stipend, not payslips). */
+  employeesOnly?: boolean;
   icon: typeof LayoutDashboard;
   perms?: Permission[];
 }
@@ -59,7 +66,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/notifications', label: 'Notifications', icon: Bell },
       { to: '/my/timesheet', label: 'My Timesheet', icon: Timer, perms: [P.TASKS_SELF] },
       { to: '/my/tasks', label: 'My Tasks', icon: ListChecks, perms: [P.TASKS_SELF] },
-      { to: '/my/payslips', label: 'My Payslips', icon: Receipt },
+      { to: '/my/payslips', label: 'My Payslips', icon: Receipt, employeesOnly: true },
       { to: '/my/leave', label: 'My Leave', icon: Plane, perms: [P.LEAVE_SELF] },
     ],
   },
@@ -69,7 +76,10 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: '/projects', label: 'Projects', icon: FolderKanban, perms: [P.TASKS_SELF, P.PROJECTS_VIEW, P.PROJECTS_MANAGE] },
       { to: '/timesheets/approvals', label: 'Timesheet Approvals', icon: ClipboardCheck, perms: [P.LEAVE_APPROVE, P.ATTENDANCE_ALL] },
       { to: '/estimates/report', label: 'Estimate Report', icon: FileBarChart, perms: [P.ESTIMATES_VIEW] },
+      { to: '/intern-work', label: 'Intern Work', icon: BookOpenCheck, perms: [P.INTERN_SELF, P.INTERNS_MENTOR, P.INTERNS_MANAGE] },
+      { to: '/tracker', label: 'Project Tracker', icon: Radar, perms: [P.PROJECTS_VIEW] },
       { to: '/timelines', label: 'Timelines', icon: GanttChart, perms: [P.PROJECTS_VIEW] },
+      { to: '/meetings', label: 'Meetings', icon: CalendarClock, perms: [P.MEETINGS_SELF, P.MEETINGS_MANAGE] },
       { to: '/ideas', label: 'Innovation Hub', icon: Lightbulb, perms: [P.IDEAS_SELF, P.IDEAS_MANAGE] },
       { to: '/enquiries', label: 'Enquiries', icon: Target, perms: [P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE] },
       { to: '/clients', label: 'Clients', icon: Briefcase, perms: [P.PROJECTS_MANAGE, P.PROJECTS_VIEW] },
@@ -87,7 +97,9 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Admin',
     items: [
       { to: '/employees', label: 'Employees', icon: Building2, perms: [P.EMPLOYEES_VIEW] },
+      { to: '/interns', label: 'Interns', icon: GraduationCap, perms: [P.INTERNS_MANAGE, P.INTERNS_MENTOR] },
       { to: '/profile-changes', label: 'Bank Changes', icon: Landmark, perms: [P.EMPLOYEES_MANAGE] },
+      { to: '/confidential', label: 'Confidential Docs', icon: FileLock2, perms: [P.CONFIDENTIAL_VIEW, P.CONFIDENTIAL_MANAGE] },
       { to: '/payroll/runs', label: 'Payroll Runs', icon: Banknote, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/payroll/adjustments', label: 'Payroll Adjustments', icon: ListPlus, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
       { to: '/payroll/fnf', label: 'Full & Final', icon: UserMinus, perms: [P.PAYROLL_VIEW, P.PAYROLL_MANAGE] },
@@ -107,16 +119,19 @@ export function Layout() {
   const logo = useImage('logo', !!company.data?.hasLogo, company.dataUpdatedAt);
 
   const sidebar = (
-    <nav className="flex h-full flex-col gap-4 p-3">
-      <div className="px-2 py-2">
+    <nav className="flex h-full flex-col p-3">
+      <div className="shrink-0 px-2 py-2">
         <div className="flex items-center justify-between gap-2">
           {logo ? <img src={logo} alt="" className="max-h-12 max-w-[8.5rem] object-contain object-left" /> : <ShieldCheck className="h-6 w-6 shrink-0 text-primary" />}
           <NotificationBell />
         </div>
         <div className="mt-2 break-words text-sm font-semibold leading-snug">{company.data?.name || 'CMS'}</div>
       </div>
+      {/* only the menu scrolls; the company header and the user block stay in place */}
+      <div className="-mx-1 mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 pb-2">
       {NAV.map(({ section, items }) => {
-        const visible = items.filter((i) => !i.perms || can(...i.perms));
+        const intern = user?.employee?.type === 'intern';
+        const visible = items.filter((i) => (!i.perms || can(...i.perms)) && !(intern && i.employeesOnly));
         if (!visible.length) return null;
         return (
           <div key={section}>
@@ -140,7 +155,8 @@ export function Layout() {
           </div>
         );
       })}
-      <div className="mt-auto border-t pt-3">
+      </div>
+      <div className="shrink-0 border-t pt-3">
         <div className="px-2 text-sm font-medium">{user?.employee?.name ?? user?.email}</div>
         <div className="px-2 pb-2 text-xs text-muted-foreground">{user?.role}</div>
         <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setPwOpen(true)}>
@@ -155,7 +171,7 @@ export function Layout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 border-r bg-background md:block">{sidebar}</aside>
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 border-r bg-background md:block">{sidebar}</aside>
       {open && (
         <div className="fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/30" />

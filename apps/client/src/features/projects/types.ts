@@ -43,6 +43,8 @@ export interface ProjectDetail extends Omit<ProjectRow, 'client' | 'stats'> {
   description?: string;
   stats: Stats & { byStatus: Record<TaskStatus, number> };
   canManage: boolean;
+  /** Manager or team member, on an open project. */
+  canAddTasks?: boolean;
 }
 
 export interface TaskComment {
@@ -69,6 +71,8 @@ export interface TaskRow {
   project?: { _id: string; code: string; name: string; status?: string };
   comments?: TaskComment[];
   canManage?: boolean;
+  /** Manager, assignee or the member who created it. */
+  canEdit?: boolean;
   isAssignee?: boolean;
 }
 

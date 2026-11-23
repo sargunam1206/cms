@@ -13,6 +13,9 @@ export type RegularizationType = (typeof REGULARIZATION_TYPES)[number];
 export const GENDERS = ['male', 'female', 'other'] as const;
 export type Gender = (typeof GENDERS)[number];
 export const EMPLOYEE_STATUS = ['active', 'notice', 'exited'] as const;
+/** Employees and interns share the employee record (attendance, leave, timesheets); interns are kept out of payroll. */
+export const EMPLOYEE_TYPES = ['employee', 'intern'] as const;
+export type EmployeeType = (typeof EMPLOYEE_TYPES)[number];
 export type EmployeeStatus = (typeof EMPLOYEE_STATUS)[number];
 
 export const TAX_REGIMES = ['new', 'old'] as const;

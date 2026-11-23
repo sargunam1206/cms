@@ -31,7 +31,7 @@ const fileSchema = new Schema(
 );
 export const TaskFile = model('TaskFile', fileSchema);
 
-type Kind = 'pdf' | 'png' | 'jpg' | 'gif' | 'webp' | 'zip' | 'ole' | 'text';
+type Kind = 'pdf' | 'png' | 'jpg' | 'gif' | 'webp' | 'zip' | 'ole' | 'text' | 'dwg';
 /** What may be attached. The type comes from the extension; the first bytes must then agree with it. */
 const TYPES: Record<string, { mime: string; kind: Kind }> = {
   pdf: { mime: 'application/pdf', kind: 'pdf' },
@@ -50,6 +50,14 @@ const TYPES: Record<string, { mime: string; kind: Kind }> = {
   txt: { mime: 'text/plain', kind: 'text' },
 };
 export const ALLOWED_EXTENSIONS = Object.keys(TYPES);
+/** Project documents also take drawings and archives (interior/site work). */
+const DOC_TYPES: Record<string, { mime: string; kind: Kind }> = {
+  ...TYPES,
+  dwg: { mime: 'image/vnd.dwg', kind: 'dwg' },
+  dxf: { mime: 'image/vnd.dxf', kind: 'text' },
+  zip: { mime: 'application/zip', kind: 'zip' },
+};
+export const DOC_EXTENSIONS = Object.keys(DOC_TYPES);
 
 const startsWith = (b: Buffer, ...bytes: number[]) => bytes.every((x, i) => b[i] === x);
 function looksLike(kind: Kind, b: Buffer) {
@@ -62,6 +70,7 @@ function looksLike(kind: Kind, b: Buffer) {
     case 'zip': return startsWith(b, 0x50, 0x4b);
     case 'ole': return startsWith(b, 0xd0, 0xcf, 0x11, 0xe0);
     case 'text': return !b.subarray(0, 4096).includes(0); // plain text has no NUL bytes
+    case 'dwg': return b.subarray(0, 4).toString() === 'AC10';
   }
 }
 
@@ -72,18 +81,32 @@ const cleanName = (raw: string) =>
     .trim()
     .slice(0, 120);
 
+/** Checks an uploaded body against its file name: allowed type, real content, not empty. Returns the clean name and type. */
+export function checkUpload(rawName: string, body: unknown, documents = false) {
+  const types = documents ? DOC_TYPES : TYPES;
+  if (!Buffer.isBuffer(body) || !body.length) throw badRequest('The file is empty');
+  const name = cleanName(rawName);
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  const type = types[ext];
+  if (!type) throw badRequest(`.${ext || '?'} files are not allowed. Use: ${Object.keys(types).join(', ')}`);
+  if (!looksLike(type.kind, body)) throw badRequest(`"${name}" does not look like a real .${ext} file`);
+  return { name, mime: type.mime, data: body };
+}
+
 export const taskFilesRouter = Router();
 const anyRight = requirePermission('tasks.self', 'projects.view', 'projects.manage');
 const idParam = validate(z.object({ id: objectId }), 'params');
 const fileParams = validate(z.object({ id: objectId, fileId: objectId }), 'params');
 
 async function taskAndProject(req: Request, id: string) {
-  const t = await Task.findById(id).select('project number title assignee');
+  const t = await Task.findById(id).select('project number title assignee reporter');
   if (!t) throw notFound('Task');
   const p = await projectForCaller(req, String(t.project)); // 404 for people outside the project
   return { t, p };
 }
-const isAssignee = (req: Request, t: { assignee?: unknown }) => t.assignee != null && String(t.assignee) === String(req.user!.employeeId);
+/** The assignee, or the member who created the task, may attach files to it. */
+const isAssignee = (req: Request, t: { assignee?: unknown; reporter?: unknown }) =>
+  (t.assignee != null && String(t.assignee) === String(req.user!.employeeId)) || (t.reporter != null && String(t.reporter) === String(req.user!.id));
 const meta = (f: { _id: unknown; name: string; mime: string; size: number; uploadedByName?: string | null; createdAt?: Date }) => ({ _id: f._id, name: f.name, mime: f.mime, size: f.size, uploadedByName: f.uploadedByName, createdAt: f.createdAt });
 
 taskFilesRouter.get(
@@ -108,13 +131,8 @@ taskFilesRouter.post(
     const { t, p } = await taskAndProject(req, req.params.id);
     if (!canManage(req, p) && !isAssignee(req, t)) throw forbidden('Only the project manager or the person the task is assigned to can attach files');
     if (['completed', 'cancelled'].includes(p.status)) throw conflict(`This project is ${p.status}; files can no longer be added`);
-    const body = req.body as unknown;
-    if (!Buffer.isBuffer(body) || !body.length) throw badRequest('The file is empty');
-    const name = cleanName(String((req.query as { name: string }).name));
-    const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
-    const type = TYPES[ext];
-    if (!type) throw badRequest(`.${ext || '?'} files are not allowed. Use: ${ALLOWED_EXTENSIONS.join(', ')}`);
-    if (!looksLike(type.kind, body)) throw badRequest(`"${name}" does not look like a real .${ext} file`);
+    const { name, mime, data: body } = checkUpload(String((req.query as { name: string }).name), req.body);
+    const type = { mime };
     if ((await TaskFile.countDocuments({ task: t._id })) >= MAX_FILES_PER_TASK) throw conflict(`A task can have at most ${MAX_FILES_PER_TASK} files`);
     const f = await TaskFile.create({ task: t._id, project: p._id, name, mime: type.mime, size: body.length, data: body, uploadedBy: req.user!.id, uploadedByName: await employeeName(req.user!.employeeId) });
     await audit({ actor: req.user!.id, action: 'task.file.add', entity: 'Task', entityId: t._id, meta: { project: p.code, task: t.number, name, size: body.length } });

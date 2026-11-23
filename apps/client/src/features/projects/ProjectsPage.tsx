@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { BILLING, PROJECT_STATUSES, projectStatusLabel, type ClientRow, type Person, type ProjectDetail, type ProjectRow } from './types';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'secondary' | 'default' | 'destructive'> = {
@@ -40,6 +41,7 @@ export function Progress({ done, total }: { done: number; total: number }) {
 }
 
 export function ProjectsPage() {
+  const [view, setView] = useViewMode('projects');
   const { can } = useAuth();
   const nav = useNavigate();
   const [q, setQ] = useState('');
@@ -77,46 +79,76 @@ export function ProjectsPage() {
           </label>
         )}
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Project</TH>
-                <TH>Client</TH>
-                <TH>Manager</TH>
-                <TH>Status</TH>
-                <TH>Progress</TH>
-                <TH>Overdue</TH>
-                <TH>Due</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {!data?.items.length && <EmptyRow cols={7} text="No projects yet" />}
-              {data?.items.map((p) => (
-                <TR key={p._id}>
-                  <TD>
-                    <Link to={`/projects/${p._id}`} className="font-medium text-primary hover:underline">
-                      {p.name}
-                    </Link>
-                    <div className="font-mono text-xs text-muted-foreground">{p.code}</div>
-                  </TD>
-                  <TD>{p.client?.name ?? '—'}</TD>
-                  <TD>{p.manager?.name}</TD>
-                  <TD>
-                    <ProjectStatusBadge status={p.status} />
-                  </TD>
-                  <TD>
-                    <Progress done={p.stats.done} total={p.stats.total} />
-                  </TD>
-                  <TD>{p.stats.overdue ? <Badge variant="destructive">{p.stats.overdue}</Badge> : <span className="text-muted-foreground">0</span>}</TD>
-                  <TD className={p.dueDate && p.dueDate < today && !['completed', 'cancelled'].includes(p.status) ? 'text-red-700' : ''}>{fmtDate(p.dueDate)}</TD>
+      <>
+        <div className="mb-2 flex justify-end">
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        {view === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Project</TH>
+                  <TH>Client</TH>
+                  <TH>Manager</TH>
+                  <TH>Status</TH>
+                  <TH>Progress</TH>
+                  <TH>Overdue</TH>
+                  <TH>Due</TH>
                 </TR>
-              ))}
-            </TBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </THead>
+              <TBody>
+                {!data?.items.length && <EmptyRow cols={7} text="No projects yet" />}
+                {data?.items.map((p) => (
+                  <TR key={p._id}>
+                    <TD>
+                      <Link to={`/projects/${p._id}`} className="font-medium text-primary hover:underline">
+                        {p.name}
+                      </Link>
+                      <div className="font-mono text-xs text-muted-foreground">{p.code}</div>
+                    </TD>
+                    <TD>{p.client?.name ?? '—'}</TD>
+                    <TD>{p.manager?.name}</TD>
+                    <TD>
+                      <ProjectStatusBadge status={p.status} />
+                    </TD>
+                    <TD>
+                      <Progress done={p.stats.done} total={p.stats.total} />
+                    </TD>
+                    <TD>{p.stats.overdue ? <Badge variant="destructive">{p.stats.overdue}</Badge> : <span className="text-muted-foreground">0</span>}</TD>
+                    <TD className={p.dueDate && p.dueDate < today && !['completed', 'cancelled'].includes(p.status) ? 'text-red-700' : ''}>{fmtDate(p.dueDate)}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+        ) : (
+        <CardGrid
+          items={data?.items}
+          empty="No projects yet."
+          render={(p) => (
+            <Card key={p._id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link to={`/projects/${p._id}`} className="block truncate font-medium text-primary hover:underline">{p.name}</Link>
+                    <div className="font-mono text-xs text-muted-foreground">{p.code}</div>
+                  </div>
+                  <ProjectStatusBadge status={p.status} />
+                </div>
+                <Progress done={p.stats.done} total={p.stats.total} />
+                <CardLine label="Client">{p.client?.name ?? '—'}</CardLine>
+                <CardLine label="Manager">{p.manager?.name}</CardLine>
+                <CardLine label="Overdue tasks">{p.stats.overdue ? <span className="font-medium text-red-700">{p.stats.overdue}</span> : '0'}</CardLine>
+                <CardLine label="Due"><span className={p.dueDate && p.dueDate < today && !['completed', 'cancelled'].includes(p.status) ? 'text-red-700' : ''}>{fmtDate(p.dueDate)}</span></CardLine>
+              </CardContent>
+            </Card>
+          )}
+        />
+        )}
+      </>
       {data && <Pager page={data.page} limit={data.limit} total={data.total} onPage={setPage} />}
       <ProjectDialog open={creating} project={null} onClose={() => setCreating(false)} onSaved={(id) => nav(`/projects/${id}`)} />
     </>

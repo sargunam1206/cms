@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPES = [
   { key: 'payroll.decided', label: 'Payroll you submitted was approved or sent back', email: true },
   { key: 'payslip.ready', label: 'Your payslip is ready', email: false },
   { key: 'task.assigned', label: 'A task was assigned to you', email: true },
+  { key: 'task.created', label: 'A team member added a task to a project you lead', email: false },
   { key: 'task.comment', label: 'Someone commented on your task', email: false },
   { key: 'task.due_soon', label: 'A task of yours is due soon', email: true },
   { key: 'project.added', label: 'You were added to a project', email: false },
@@ -26,6 +27,13 @@ export const NOTIFICATION_TYPES = [
   { key: 'idea.comment', label: 'Someone commented on your idea', email: false },
   { key: 'timesheet.submitted', label: 'A timesheet is waiting for your approval', email: true },
   { key: 'timesheet.decided', label: 'Your timesheet was approved or sent back', email: true },
+  { key: 'meeting.invited', label: 'You were invited to a meeting, or it was changed', email: true },
+  { key: 'meeting.cancelled', label: 'A meeting you were invited to was cancelled', email: true },
+  { key: 'meeting.reminder', label: 'A meeting of yours starts soon', email: true },
+  { key: 'meeting.action', label: 'A meeting action item was assigned to you', email: true },
+  { key: 'intern.task', label: 'Intern work: a task was given to you, or your work was reviewed', email: true },
+  { key: 'intern.submitted', label: 'An intern you mentor submitted work for review', email: true },
+  { key: 'document.expiry', label: 'A confidential document is due for renewal or review', email: true },
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]['key'];

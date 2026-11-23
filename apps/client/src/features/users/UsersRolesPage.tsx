@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 
 export function UsersRolesPage() {
   const { can } = useAuth();
@@ -45,6 +46,7 @@ interface RolesResponse {
 }
 
 function UsersTab() {
+  const [view, setView] = useViewMode('users');
   const [q, setQ] = useState('');
   const dq = useDebounced(q);
   const [page, setPage] = useState(1);
@@ -60,41 +62,69 @@ function UsersTab() {
           <Plus /> New login
         </Button>
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Email</TH>
-                <TH>Role</TH>
-                <TH>Employee</TH>
-                <TH>Last login</TH>
-                <TH>Status</TH>
-                <TH />
-              </TR>
-            </THead>
-            <TBody>
-              {!users.data?.items.length && <EmptyRow cols={6} />}
-              {users.data?.items.map((u) => (
-                <TR key={u._id}>
-                  <TD className="font-medium">{u.email}</TD>
-                  <TD>{u.role?.name}</TD>
-                  <TD>{u.employee ? `${u.employee.name} (${u.employee.code})` : '—'}</TD>
-                  <TD>{fmtDate(u.lastLoginAt)}</TD>
-                  <TD>
-                    <StatusBadge status={u.status} />
-                  </TD>
-                  <TD className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>
-                      Edit
-                    </Button>
-                  </TD>
+      <>
+        <div className="mb-2 flex justify-end">
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        {view === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Email</TH>
+                  <TH>Role</TH>
+                  <TH>Employee</TH>
+                  <TH>Last login</TH>
+                  <TH>Status</TH>
+                  <TH />
                 </TR>
-              ))}
-            </TBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </THead>
+              <TBody>
+                {!users.data?.items.length && <EmptyRow cols={6} />}
+                {users.data?.items.map((u) => (
+                  <TR key={u._id}>
+                    <TD className="font-medium">{u.email}</TD>
+                    <TD>{u.role?.name}</TD>
+                    <TD>{u.employee ? `${u.employee.name} (${u.employee.code})` : '—'}</TD>
+                    <TD>{fmtDate(u.lastLoginAt)}</TD>
+                    <TD>
+                      <StatusBadge status={u.status} />
+                    </TD>
+                    <TD className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>
+                        Edit
+                      </Button>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+        ) : (
+        <CardGrid
+          items={users.data?.items}
+          empty="No users match."
+          render={(u) => (
+            <Card key={u._id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 truncate font-medium">{u.email}</div>
+                  <StatusBadge status={u.status} />
+                </div>
+                <CardLine label="Role">{u.role?.name}</CardLine>
+                <CardLine label="Employee">{u.employee ? `${u.employee.name} (${u.employee.code})` : '—'}</CardLine>
+                <CardLine label="Last login">{fmtDate(u.lastLoginAt)}</CardLine>
+                <div className="flex justify-end border-t pt-2">
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>Edit</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        />
+        )}
+      </>
       {users.data && <Pager page={users.data.page} limit={users.data.limit} total={users.data.total} onPage={setPage} />}
       <UserDialog editing={editing} roles={roles.data?.roles ?? []} onClose={() => setEditing(null)} />
     </>

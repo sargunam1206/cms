@@ -14,6 +14,13 @@ import { MyTimesheetPage } from '@/features/timesheets/MyTimesheetPage';
 import { TimesheetApprovalsPage } from '@/features/timesheets/TimesheetApprovalsPage';
 import { IdeaPage } from '@/features/ideas/IdeaPage';
 import { IdeasPage } from '@/features/ideas/IdeasPage';
+import { MeetingPage } from '@/features/meetings/MeetingPage';
+import { ConfidentialPage } from '@/features/confidential/ConfidentialPage';
+import { TrackerPage } from '@/features/projects/TrackerPage';
+import { InternPage } from '@/features/interns/InternPage';
+import { InternsPage } from '@/features/interns/InternsPage';
+import { InternWorkPage } from '@/features/interns/InternWorkPage';
+import { MeetingsPage } from '@/features/meetings/MeetingsPage';
 import { EnquiriesPage } from '@/features/enquiries/EnquiriesPage';
 import { EnquiryPage } from '@/features/enquiries/EnquiryPage';
 import { EstimateReportPage } from '@/features/estimates/EstimateReportPage';
@@ -85,6 +92,13 @@ export function AppRoutes() {
         <Route path="timelines" element={<Guard perms={[P.PROJECTS_VIEW]}><PortfolioTimelinePage /></Guard>} />
         <Route path="ideas" element={<Guard perms={[P.IDEAS_SELF, P.IDEAS_MANAGE]}><IdeasPage /></Guard>} />
         <Route path="ideas/:id" element={<Guard perms={[P.IDEAS_SELF, P.IDEAS_MANAGE]}><IdeaPage /></Guard>} />
+        <Route path="meetings" element={<Guard perms={[P.MEETINGS_SELF, P.MEETINGS_MANAGE]}><MeetingsPage /></Guard>} />
+        <Route path="meetings/:id" element={<Guard perms={[P.MEETINGS_SELF, P.MEETINGS_MANAGE]}><MeetingPage /></Guard>} />
+        <Route path="interns" element={<Guard perms={[P.INTERNS_MANAGE, P.INTERNS_MENTOR]}><InternsPage /></Guard>} />
+        <Route path="interns/:id" element={<Guard perms={[P.INTERNS_MANAGE, P.INTERNS_MENTOR, P.INTERN_SELF]}><InternPage /></Guard>} />
+        <Route path="intern-work" element={<Guard perms={[P.INTERN_SELF, P.INTERNS_MENTOR, P.INTERNS_MANAGE]}><InternWorkPage /></Guard>} />
+        <Route path="tracker" element={<Guard perms={[P.PROJECTS_VIEW]}><TrackerPage /></Guard>} />
+        <Route path="confidential" element={<Guard perms={[P.CONFIDENTIAL_VIEW, P.CONFIDENTIAL_MANAGE]}><ConfidentialPage /></Guard>} />
         <Route path="enquiries" element={<Guard perms={[P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE]}><EnquiriesPage /></Guard>} />
         <Route path="enquiries/:id" element={<Guard perms={[P.ENQUIRIES_SELF, P.ENQUIRIES_VIEW, P.ENQUIRIES_MANAGE]}><EnquiryPage /></Guard>} />
         <Route path="clients" element={<Guard perms={[P.PROJECTS_MANAGE, P.PROJECTS_VIEW]}><ClientsPage /></Guard>} />

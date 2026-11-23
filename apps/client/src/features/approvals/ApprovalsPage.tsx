@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Field, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface Pending {
   kind: 'leave' | 'regularization';
@@ -21,6 +23,7 @@ interface Pending {
 const empName = (e: string | EmployeeRef) => (typeof e === 'string' ? e : `${e.name} (${e.code})`);
 
 export function ApprovalsPage() {
+  const [view, setView] = useViewMode('approvals');
   const { can } = useAuth();
   const [pending, setPending] = useState<Pending | null>(null);
   const [comment, setComment] = useState('');
@@ -65,66 +68,118 @@ export function ApprovalsPage() {
         </TabsList>
         {canLeave && (
           <TabsContent value="leave">
-            <Table className="rounded-lg border bg-card">
-              <THead>
-                <TR>
-                  <TH>Employee</TH>
-                  <TH>Type</TH>
-                  <TH>Dates</TH>
-                  <TH>Days</TH>
-                  <TH>Reason</TH>
-                  <TH />
-                </TR>
-              </THead>
-              <TBody>
-                {!leaves.data?.length && <EmptyRow cols={6} text="No pending leave" />}
-                {leaves.data?.map((r) => (
-                  <TR key={r._id}>
-                    <TD>{empName(r.employee)}</TD>
-                    <TD>{r.leaveType?.code}</TD>
-                    <TD>
-                      {fmtDate(r.from)}
-                      {r.to !== r.from && <> – {fmtDate(r.to)}</>}
-                      {r.halfDay && ' (half)'}
-                    </TD>
-                    <TD>{r.days}</TD>
-                    <TD className="max-w-xs">{r.reason}</TD>
-                    <TD>{actions({ kind: 'leave', id: r._id, title: `${r.leaveType?.code} for ${empName(r.employee)}` })}</TD>
+            <>
+              <div className="mb-2 flex justify-end">
+                <ViewToggle mode={view} onChange={setView} />
+              </div>
+              {view === 'list' ? (
+              <Table className="rounded-lg border bg-card">
+                <THead>
+                  <TR>
+                    <TH>Employee</TH>
+                    <TH>Type</TH>
+                    <TH>Dates</TH>
+                    <TH>Days</TH>
+                    <TH>Reason</TH>
+                    <TH />
                   </TR>
-                ))}
-              </TBody>
-            </Table>
+                </THead>
+                <TBody>
+                  {!leaves.data?.length && <EmptyRow cols={6} text="No pending leave" />}
+                  {leaves.data?.map((r) => (
+                    <TR key={r._id}>
+                      <TD>{empName(r.employee)}</TD>
+                      <TD>{r.leaveType?.code}</TD>
+                      <TD>
+                        {fmtDate(r.from)}
+                        {r.to !== r.from && <> – {fmtDate(r.to)}</>}
+                        {r.halfDay && ' (half)'}
+                      </TD>
+                      <TD>{r.days}</TD>
+                      <TD className="max-w-xs">{r.reason}</TD>
+                      <TD>{actions({ kind: 'leave', id: r._id, title: `${r.leaveType?.code} for ${empName(r.employee)}` })}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+              ) : (
+              <CardGrid
+                items={leaves.data}
+                empty="No pending leave"
+                render={(r) => (
+                  <Card key={r._id}>
+                    <CardContent className="space-y-2 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-medium">{empName(r.employee)}</div>
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">{r.leaveType?.code}</span>
+                      </div>
+                      <CardLine label="Dates">{fmtDate(r.from)}{r.to !== r.from && <> – {fmtDate(r.to)}</>}{r.halfDay && ' (half)'}</CardLine>
+                      <CardLine label="Days">{r.days}</CardLine>
+                      {r.reason && <div className="line-clamp-3 text-xs text-muted-foreground">{r.reason}</div>}
+                      <div className="flex justify-end border-t pt-2">{actions({ kind: 'leave', id: r._id, title: `${r.leaveType?.code} for ${empName(r.employee)}` })}</div>
+                    </CardContent>
+                  </Card>
+                )}
+              />
+              )}
+            </>
           </TabsContent>
         )}
         {canReg && (
           <TabsContent value="reg">
-            <Table className="rounded-lg border bg-card">
-              <THead>
-                <TR>
-                  <TH>Employee</TH>
-                  <TH>Date</TH>
-                  <TH>Type</TH>
-                  <TH>In / Out</TH>
-                  <TH>Reason</TH>
-                  <TH />
-                </TR>
-              </THead>
-              <TBody>
-                {!regs.data?.length && <EmptyRow cols={6} text="No pending regularizations" />}
-                {regs.data?.map((r) => (
-                  <TR key={r._id}>
-                    <TD>{empName(r.employee)}</TD>
-                    <TD>{fmtDate(r.date)}</TD>
-                    <TD className="capitalize">{r.type.replace('-', ' ')}</TD>
-                    <TD>
-                      {r.checkIn ?? '—'} / {r.checkOut ?? '—'}
-                    </TD>
-                    <TD className="max-w-xs">{r.reason}</TD>
-                    <TD>{actions({ kind: 'regularization', id: r._id, title: `regularization for ${empName(r.employee)}` })}</TD>
+            <>
+              <div className="mb-2 flex justify-end">
+                <ViewToggle mode={view} onChange={setView} />
+              </div>
+              {view === 'list' ? (
+              <Table className="rounded-lg border bg-card">
+                <THead>
+                  <TR>
+                    <TH>Employee</TH>
+                    <TH>Date</TH>
+                    <TH>Type</TH>
+                    <TH>In / Out</TH>
+                    <TH>Reason</TH>
+                    <TH />
                   </TR>
-                ))}
-              </TBody>
-            </Table>
+                </THead>
+                <TBody>
+                  {!regs.data?.length && <EmptyRow cols={6} text="No pending regularizations" />}
+                  {regs.data?.map((r) => (
+                    <TR key={r._id}>
+                      <TD>{empName(r.employee)}</TD>
+                      <TD>{fmtDate(r.date)}</TD>
+                      <TD className="capitalize">{r.type.replace('-', ' ')}</TD>
+                      <TD>
+                        {r.checkIn ?? '—'} / {r.checkOut ?? '—'}
+                      </TD>
+                      <TD className="max-w-xs">{r.reason}</TD>
+                      <TD>{actions({ kind: 'regularization', id: r._id, title: `regularization for ${empName(r.employee)}` })}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+              ) : (
+              <CardGrid
+                items={regs.data}
+                empty="No pending regularizations"
+                render={(r) => (
+                  <Card key={r._id}>
+                    <CardContent className="space-y-2 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-medium">{empName(r.employee)}</div>
+                        <span className="text-xs capitalize text-muted-foreground">{r.type.replace('-', ' ')}</span>
+                      </div>
+                      <CardLine label="Date">{fmtDate(r.date)}</CardLine>
+                      <CardLine label="In / Out">{r.checkIn ?? '—'} / {r.checkOut ?? '—'}</CardLine>
+                      {r.reason && <div className="line-clamp-3 text-xs text-muted-foreground">{r.reason}</div>}
+                      <div className="flex justify-end border-t pt-2">{actions({ kind: 'regularization', id: r._id, title: `regularization for ${empName(r.employee)}` })}</div>
+                    </CardContent>
+                  </Card>
+                )}
+              />
+              )}
+            </>
           </TabsContent>
         )}
       </Tabs>

@@ -2,7 +2,7 @@
  * Idempotent seed: roles, default settings, leave types and the admin login.
  * `npm run seed:demo` also creates sample employees with logins (password: Passw0rd!).
  */
-import { DEFAULT_ENQUIRY_OPTIONS, DEFAULT_RATE_CARD, DEFAULT_ROLE_PERMISSIONS, DEFAULT_WORK_CALENDAR, PHASE3_PERMISSIONS, PHASE4_PERMISSIONS, PHASE5_PERMISSIONS, ROLE_NAMES } from '@cms/shared';
+import { PERMISSIONS, DEFAULT_ENQUIRY_OPTIONS, DEFAULT_RATE_CARD, DEFAULT_ROLE_PERMISSIONS, DEFAULT_WORK_CALENDAR, PHASE3_PERMISSIONS, PHASE4_PERMISSIONS, PHASE5_PERMISSIONS, MEETING_PERMISSIONS, CONFIDENTIAL_PERMISSIONS, INTERN_PERMISSIONS, ROLE_NAMES } from '@cms/shared';
 import { connectDb, disconnectDb } from '../config/db';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
@@ -83,6 +83,36 @@ async function main() {
     }
     await Setting.create({ key: 'migration.phase5Permissions', value: { done: true }, effectiveFrom: '1970-01-01' });
     logger.info('Added Phase 5 permissions to existing roles');
+  }
+  if (!(await Setting.exists({ key: 'migration.meetingPermissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => MEETING_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.meetingPermissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added meeting permissions to existing roles');
+  }
+  if (!(await Setting.exists({ key: 'migration.confidentialPermissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => CONFIDENTIAL_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.confidentialPermissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added confidential document permissions to existing roles');
+  }
+  if (!(await Setting.exists({ key: 'migration.internPermissions' }))) {
+    for (const name of ROLE_NAMES) {
+      const add = DEFAULT_ROLE_PERMISSIONS[name].filter((p) => INTERN_PERMISSIONS.includes(p));
+      if (add.length) await Role.updateOne({ name }, { $addToSet: { permissions: { $each: add } } });
+    }
+    await Setting.create({ key: 'migration.internPermissions', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Added intern permissions to existing roles');
+  }
+  // Interns may log their own enquiries (added after the Intern role first shipped)
+  if (!(await Setting.exists({ key: 'migration.internEnquiries' }))) {
+    await Role.updateOne({ name: 'Intern' }, { $addToSet: { permissions: PERMISSIONS.ENQUIRIES_SELF } });
+    await Setting.create({ key: 'migration.internEnquiries', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info('Interns can now log their own enquiries');
   }
   await Setting.updateOne({ key: 'enquiryOptions', effectiveFrom: '1970-01-01' }, { $setOnInsert: { value: DEFAULT_ENQUIRY_OPTIONS } }, { upsert: true });
 
