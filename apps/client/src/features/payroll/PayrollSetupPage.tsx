@@ -264,7 +264,7 @@ function AssignDialog({ template, onClose }: { template: PayTemplate | null; onC
   const [from, setFrom] = useState('');
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const emps = useGet<Paged<Employee>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' }, !!template);
+  const emps = useGet<Paged<Employee>>(['employees', 'all', 'employee'], '/employees', { limit: 500, status: 'active', type: 'employee' }, !!template);
   useEffect(() => {
     if (template) {
       setFrom(new Date().toISOString().slice(0, 8) + '01');

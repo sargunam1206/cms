@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { ArrowLeft, CalendarClock, ExternalLink, MapPin, Pencil, Trash2, Users } from 'lucide-react';
+import { CalendarClock, ExternalLink, MapPin, Pencil, Trash2, Users } from 'lucide-react';
 import { useGet, useSend } from '@/api/hooks';
 import { PageHeader, Spinner } from '@/components/common/page';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ export function MeetingPage() {
   const { data: m, isLoading } = useGet<MeetingDetail>(['meetings', 'one', id], `/meetings/${id}`);
   const [editing, setEditing] = useState(false);
   const status = useSend<string>('patch', `/meetings/${id}/status`, { invalidate: [['meetings']], success: 'Updated', body: (s) => ({ status: s }) });
-  const del = useSend('delete', `/meetings/${id}`, { invalidate: [['meetings']], success: 'Meeting deleted', onSuccess: () => nav('/meetings') });
+  const del = useSend('delete', `/meetings/${id}`, { invalidate: [['meetings']], success: 'Meeting deleted', onSuccess: () => nav('/meetings', { replace: true }) });
   const tick = useSend<{ actionId: string; done: boolean }>('patch', (v) => `/meetings/${id}/actions/${v.actionId}`, {
     invalidate: [['meetings']],
     body: (v) => ({ done: v.done }),
@@ -30,9 +30,6 @@ export function MeetingPage() {
   const past = m.date < dayjs().format('YYYY-MM-DD');
   return (
     <>
-      <Link to="/meetings" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Meetings
-      </Link>
       <PageHeader
         title={m.title}
         description={`Organised by ${m.organizer.name}`}

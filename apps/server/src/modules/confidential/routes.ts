@@ -79,7 +79,7 @@ confidentialRouter.get(
   ah(async (_req, res) => {
     const roles = await Role.find({ permissions: { $in: [P.CONFIDENTIAL_VIEW, P.CONFIDENTIAL_MANAGE] } }).select('_id').lean();
     const users = await User.find({ role: { $in: roles.map((r) => r._id) }, status: 'active', employee: { $ne: null } }).select('employee').lean();
-    res.json(await Employee.find({ _id: { $in: users.map((u) => u.employee) } }).select('name code designation').sort({ name: 1 }).lean());
+    res.json(await Employee.find({ _id: { $in: users.map((u) => u.employee) } }).select('name code designation type').sort({ name: 1 }).lean());
   }),
 );
 

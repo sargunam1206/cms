@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { ArrowLeft, Download, Plus, Trash2, Upload, UserCheck } from 'lucide-react';
+import { Download, Plus, Trash2, Upload, UserCheck } from 'lucide-react';
+import { INTERN_SOURCE_LABEL } from '@cms/shared';
 import { toast } from 'sonner';
 import { api, apiError } from '@/api/client';
 import { useGet, useSend } from '@/api/hooks';
@@ -17,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { fmtSize } from '@/features/projects/TaskFiles';
 import { InternStatusBadge } from './InternsPage';
 import { InternWorkBoard } from './InternWorkPage';
-import { INTERN_STATUS_LABEL, inr, type InternDetail, type PersonRef } from './types';
+import { InternFormDialog, ORG_LABEL, useDeleteIntern } from './InternForm';
+import { INTERN_STATUS_LABEL, hm, inr, payText, type InternDetail } from './types';
 
 export function InternPage() {
   const { id = '' } = useParams();
@@ -25,16 +27,15 @@ export function InternPage() {
   const [editing, setEditing] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const nav = useNavigate();
+  const del = useDeleteIntern(() => nav(i?.isSelf ? '/intern-work' : '/interns', { replace: true }));
   if (!i) return <Spinner />;
   const closed = ['completed', 'dropped', 'converted'].includes(i.status);
   return (
     <>
-      <Link to={i.isSelf ? '/intern-work' : '/interns'} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
-        <ArrowLeft className="h-4 w-4" /> {i.isSelf ? 'My work' : 'Interns'}
-      </Link>
       <PageHeader
         title={i.employee.name}
-        description={`${i.employee.code} · ${i.college}${i.course ? ` · ${i.course}` : ''}`}
+        description={`${i.employee.code} · ${i.organization}${i.course ? ` · ${i.course}` : ''}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <InternStatusBadge status={i.status} />
@@ -49,6 +50,11 @@ export function InternPage() {
                 {i.status !== 'converted' && (
                   <Button onClick={() => setConvertOpen(true)}>
                     <UserCheck /> Convert to employee
+                  </Button>
+                )}
+                {i.status !== 'converted' && (
+                  <Button variant="ghost" className="text-destructive" disabled={del.isPending} onClick={() => del.ask(i._id, i.employee.name)}>
+                    <Trash2 /> Delete
                   </Button>
                 )}
               </>
@@ -88,7 +94,7 @@ export function InternPage() {
           </TabsContent>
         )}
       </Tabs>
-      <EditIntern i={i} open={editing} onClose={() => setEditing(false)} />
+      <InternFormDialog open={editing} editId={i._id} onClose={() => setEditing(false)} />
       <StatusDialog i={i} open={statusOpen} onClose={() => setStatusOpen(false)} />
       <ConvertDialog i={i} open={convertOpen} onClose={() => setConvertOpen(false)} />
     </>
@@ -118,10 +124,12 @@ function Overview({ i }: { i: InternDetail }) {
             {dayjs(i.startDate).format('DD MMM YYYY')} – {dayjs(i.endDate).format('DD MMM YYYY')} ({days} days{['active', 'onboarding'].includes(i.status) && left >= 0 ? `, ${left} left` : ''})
           </Row>
           <Row label="Mentor">{i.mentor ? `${i.mentor.name}${i.mentor.designation ? ` · ${i.mentor.designation}` : ''}` : '—'}</Row>
-          <Row label="College">{i.college}</Row>
-          <Row label="Course">{[i.course, i.yearOfStudy].filter(Boolean).join(' · ') || '—'}</Row>
+          <Row label="Intern from">{INTERN_SOURCE_LABEL[i.source]}</Row>
+          <Row label={ORG_LABEL[i.source]}>{i.organization}</Row>
+          {i.source === 'college' && <Row label="Course">{[i.course, i.yearOfStudy].filter(Boolean).join(' · ') || '—'}</Row>}
+          <Row label="Works on">{i.payBasis === 'hourly' ? `Hourly basis${i.hoursPerWeek ? ` · about ${i.hoursPerWeek} hours a week` : ''}` : 'Monthly basis'}</Row>
           <Row label="Department">{i.employee.department || '—'}</Row>
-          {i.stipend != null && <Row label="Stipend">{i.stipend ? `${inr(i.stipend)} per month` : 'Unpaid'}</Row>}
+          {i.stipend != null && <Row label="Stipend">{i.stipend ? `${inr(i.stipend)} per ${i.payBasis === 'hourly' ? 'hour' : 'month'}` : 'Unpaid'}</Row>}
           <Row label="Contact">{[i.employee.email, i.employee.phone].filter(Boolean).join(' · ') || '—'}</Row>
           <Row label="Login">{i.login ? `${i.login.email} (${i.login.status})` : 'No login yet — create one under Users & Roles with the Intern role'}</Row>
         </CardContent>
@@ -246,7 +254,7 @@ function Documents({ i }: { i: InternDetail }) {
             <Field label="Document" className="w-64">
               <Select value={title} onChange={(e) => setTitle(e.target.value)}>
                 <option value="">Choose…</option>
-                {['Offer letter', 'Signed offer letter', 'College letter / NOC', 'ID proof', 'Resume', 'NDA', 'Bank details', 'Completion certificate', 'Other'].map((t) => (
+                {['Offer letter', 'Signed offer letter', 'College letter / NOC', 'Company letter / NOC', 'ID proof', 'Resume', 'NDA', 'Bank details', 'Completion certificate', 'Other'].map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </Select>
@@ -381,18 +389,41 @@ function Allocations({ i, closed }: { i: InternDetail; closed: boolean }) {
   );
 }
 
+interface MonthHours {
+  attendanceMinutes: number;
+  daysWorked: number;
+  taskMinutes: number;
+  suggestedAmount: number;
+}
+
 function Stipend({ i }: { i: InternDetail }) {
-  const [f, setF] = useState({ month: dayjs().subtract(1, 'month').format('YYYY-MM'), amount: String((i.stipend ?? 0) / 100), paidOn: dayjs().format('YYYY-MM-DD'), note: '' });
-  const add = useSend('post', `/interns/${i._id}/stipend`, { invalidate: [['interns']], success: 'Payment recorded', body: () => ({ ...f, amount: Number(f.amount) || 0 }) });
+  const hourly = i.payBasis === 'hourly';
+  const [f, setF] = useState({ month: dayjs().subtract(1, 'month').format('YYYY-MM'), hours: '', amount: String((i.stipend ?? 0) / 100), paidOn: dayjs().format('YYYY-MM-DD'), note: '' });
+  const hours = useGet<MonthHours>(['interns', 'hours', i._id, f.month], `/interns/${i._id}/hours`, { month: f.month }, !!f.month);
+  // hourly interns: fill in the month's hours and the amount they come to (still editable)
+  useEffect(() => {
+    if (!hourly || !hours.data) return;
+    setF((x) => ({ ...x, hours: String(Math.round((hours.data.attendanceMinutes / 60) * 100) / 100), amount: String(hours.data.suggestedAmount / 100) }));
+  }, [hourly, hours.data]);
+  const add = useSend('post', `/interns/${i._id}/stipend`, {
+    invalidate: [['interns']],
+    success: 'Payment recorded',
+    body: () => ({ month: f.month, paidOn: f.paidOn, note: f.note, amount: Number(f.amount) || 0, hours: hourly && f.hours ? Number(f.hours) : undefined }),
+  });
   const del = useSend<string>('delete', (pid) => `/interns/${i._id}/stipend/${pid}`, { invalidate: [['interns']], success: 'Removed' });
   const total = (i.stipendPayments ?? []).reduce((s, p) => s + p.amount, 0);
   return (
     <div className="space-y-3">
       <Card>
-        <CardContent className="grid items-end gap-2 pt-5 sm:grid-cols-[9rem_9rem_9rem_1fr_auto]">
+        <CardContent className={`grid items-end gap-2 pt-5 ${hourly ? 'sm:grid-cols-[9rem_7rem_9rem_9rem_1fr_auto]' : 'sm:grid-cols-[9rem_9rem_9rem_1fr_auto]'}`}>
           <Field label="Month">
             <Input type="month" value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} />
           </Field>
+          {hourly && (
+            <Field label="Hours">
+              <Input type="number" min={0} step="0.25" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value, amount: String(Math.round((Number(e.target.value) || 0) * ((i.stipend ?? 0) / 100))) })} />
+            </Field>
+          )}
           <Field label="Amount (₹)">
             <Input type="number" min={0} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
           </Field>
@@ -405,6 +436,13 @@ function Stipend({ i }: { i: InternDetail }) {
           <Button disabled={add.isPending || !f.month} onClick={() => add.mutate(undefined)}>
             Record
           </Button>
+          {hours.data && (
+            <p className="text-xs text-muted-foreground sm:col-span-full">
+              {dayjs(`${f.month}-01`).format('MMMM YYYY')}: {hm(hours.data.attendanceMinutes)} worked over {hours.data.daysWorked} day(s) by attendance
+              {hours.data.taskMinutes ? `, ${hm(hours.data.taskMinutes)} logged on intern tasks` : ''}.
+              {hourly && ` At ${inr(i.stipend)}/hr that comes to ${inr(hours.data.suggestedAmount)}.`}
+            </p>
+          )}
         </CardContent>
       </Card>
       <Card>
@@ -413,6 +451,7 @@ function Stipend({ i }: { i: InternDetail }) {
             <THead>
               <TR>
                 <TH>Month</TH>
+                {hourly && <TH>Hours</TH>}
                 <TH>Amount</TH>
                 <TH>Paid on</TH>
                 <TH>Note</TH>
@@ -421,10 +460,11 @@ function Stipend({ i }: { i: InternDetail }) {
               </TR>
             </THead>
             <TBody>
-              {!i.stipendPayments?.length && <EmptyRow cols={6} text={i.stipend ? 'No payments recorded yet.' : 'This is an unpaid internship.'} />}
+              {!i.stipendPayments?.length && <EmptyRow cols={hourly ? 7 : 6} text={i.stipend ? 'No payments recorded yet.' : 'This is an unpaid internship.'} />}
               {i.stipendPayments?.map((p) => (
                 <TR key={p._id}>
                   <TD>{dayjs(`${p.month}-01`).format('MMM YYYY')}</TD>
+                  {hourly && <TD>{p.hours ?? '—'}</TD>}
                   <TD>{inr(p.amount)}</TD>
                   <TD className="text-xs">{dayjs(p.paidOn).format('DD MMM YYYY')}</TD>
                   <TD className="text-sm">{p.note}</TD>
@@ -442,90 +482,6 @@ function Stipend({ i }: { i: InternDetail }) {
       </Card>
       <p className="text-xs text-muted-foreground">Total paid: {inr(total)}. Stipends are recorded here and are not part of payroll runs.</p>
     </div>
-  );
-}
-
-function EditIntern({ i, open, onClose }: { i: InternDetail; open: boolean; onClose: () => void }) {
-  const mentors = useGet<PersonRef[]>(['interns', 'mentors'], '/interns/mentors', undefined, open);
-  const init = () => ({
-    name: i.employee.name,
-    email: i.employee.email ?? '',
-    phone: i.employee.phone ?? '',
-    department: i.employee.department ?? '',
-    designation: i.employee.designation ?? 'Intern',
-    college: i.college,
-    course: i.course ?? '',
-    yearOfStudy: i.yearOfStudy ?? '',
-    startDate: i.startDate,
-    endDate: i.endDate,
-    mentor: i.mentor?._id ?? '',
-    stipend: String((i.stipend ?? 0) / 100),
-  });
-  const [f, setF] = useState(init);
-  useEffect(() => {
-    if (open) setF(init());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  const set = (k: keyof ReturnType<typeof init>) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const save = useSend('put', `/interns/${i._id}`, { invalidate: [['interns']], success: 'Saved', onSuccess: onClose, body: () => ({ ...f, mentor: f.mentor || null, stipend: Number(f.stipend) || 0 }) });
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit intern</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Full name">
-            <Input value={f.name} onChange={set('name')} />
-          </Field>
-          <Field label="Email">
-            <Input value={f.email} onChange={set('email')} />
-          </Field>
-          <Field label="Phone">
-            <Input value={f.phone} onChange={set('phone')} />
-          </Field>
-          <Field label="Department">
-            <Input value={f.department} onChange={set('department')} />
-          </Field>
-          <Field label="College">
-            <Input value={f.college} onChange={set('college')} />
-          </Field>
-          <Field label="Course">
-            <Input value={f.course} onChange={set('course')} />
-          </Field>
-          <Field label="Year of study">
-            <Input value={f.yearOfStudy} onChange={set('yearOfStudy')} />
-          </Field>
-          <Field label="Designation">
-            <Input value={f.designation} onChange={set('designation')} />
-          </Field>
-          <Field label="Start date">
-            <Input type="date" value={f.startDate} onChange={set('startDate')} />
-          </Field>
-          <Field label="End date (extend here)">
-            <Input type="date" value={f.endDate} onChange={set('endDate')} />
-          </Field>
-          <Field label="Mentor">
-            <Select value={f.mentor} onChange={set('mentor')}>
-              <option value="">None</option>
-              {mentors.data?.map((m) => (
-                <option key={m._id} value={m._id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Monthly stipend (₹)">
-            <Input type="number" min={0} value={f.stipend} onChange={set('stipend')} />
-          </Field>
-        </div>
-        <DialogFooter>
-          <Button disabled={save.isPending} onClick={() => save.mutate(undefined)}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

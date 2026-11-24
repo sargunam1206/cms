@@ -29,7 +29,16 @@ import { hashPassword } from '../auth/service';
 import { Employee } from '../employees/model';
 import { employeeName, notify, usersOfEmployees } from '../notifications/service';
 import { checkUpload } from '../projects/files';
-import { Project } from '../projects/model';
+import { Project, Task } from '../projects/model';
+import { AttendanceDay, RegularizationRequest } from '../attendance/model';
+import { LeaveBalance, LeaveRequest } from '../leave/model';
+import { TimeLog, Timesheet } from '../timesheets/model';
+import { Meeting } from '../meetings/model';
+import { Enquiry } from '../enquiries/model';
+import { Idea } from '../ideas/model';
+import { Milestone } from '../milestones/model';
+import { ConfidentialFolder } from '../confidential/model';
+import { Notification } from '../notifications/model';
 import { RefreshToken, Role, User } from '../users/model';
 import { InternDoc, InternDocFile, InternTask, Internship } from './model';
 
@@ -62,6 +71,8 @@ async function internshipOf(req: Request, employeeId: string) {
   return i;
 }
 const paise = (rupees: number) => Math.round(rupees * 100);
+/** Records made before "company" interns existed only have `college`. */
+const orgOf = (i: { organization?: string | null; college?: string | null }) => i.organization || i.college || '';
 const by = (req: Request) => employeeName(req.user!.employeeId);
 
 // ---------- Lists ----------
@@ -78,7 +89,7 @@ internsRouter.get(
     if (q) {
       const rx = new RegExp(escapeRegex(q), 'i');
       const emps = await Employee.find({ type: 'intern', $or: [{ name: rx }, { code: rx }, { email: rx }] }).select('_id').lean();
-      filter.$or = [{ employee: { $in: emps.map((e) => e._id) } }, { college: rx }];
+      filter.$or = [{ employee: { $in: emps.map((e) => e._id) } }, { organization: rx }, { college: rx }];
     }
     const items = await Internship.find(filter).populate('employee', PERSON).populate('mentor', 'name code').sort({ startDate: -1 }).lean();
     const ids = items.map((i) => (i.employee as any)?._id).filter(Boolean);
@@ -91,13 +102,16 @@ internsRouter.get(
       items: items.map((i) => ({
         _id: (i.employee as any)?._id,
         employee: i.employee,
-        college: i.college,
+        source: i.source ?? 'college',
+        organization: orgOf(i),
         course: i.course,
         startDate: i.startDate,
         endDate: i.endDate,
         mentor: i.mentor,
         status: i.status,
+        payBasis: i.payBasis ?? 'monthly',
         stipend: i.stipend,
+        hoursPerWeek: i.hoursPerWeek,
         onboarding: { done: i.checklist.filter((c) => c.done).length, total: i.checklist.length },
         work: w.get(String((i.employee as any)?._id)) ?? { total: 0, approved: 0, submitted: 0 },
       })),
@@ -266,13 +280,16 @@ internsRouter.post(
     });
     const i = await Internship.create({
       employee: emp._id,
-      college: b.college,
+      source: b.source,
+      organization: b.organization,
       course: b.course || '',
       yearOfStudy: b.yearOfStudy || '',
       startDate: b.startDate,
       endDate: b.endDate,
       mentor: b.mentor || null,
+      payBasis: b.payBasis,
       stipend: paise(b.stipend),
+      hoursPerWeek: b.payBasis === 'hourly' ? b.hoursPerWeek : undefined,
       checklist: DEFAULT_INTERN_CHECKLIST.map((label) => ({ label, done: false })),
       history: [{ at: now(), byName: await by(req), to: 'onboarding' }],
     });
@@ -281,7 +298,7 @@ internsRouter.post(
       if (!role) throw badRequest('The Intern role is missing; run the seed');
       await User.create({ email: b.email, passwordHash: await hashPassword(b.password), role: role._id, employee: emp._id });
     }
-    await audit({ actor: req.user!.id, action: 'intern.create', entity: 'Employee', entityId: emp._id, meta: { code, name: emp.name, college: i.college } });
+    await audit({ actor: req.user!.id, action: 'intern.create', entity: 'Employee', entityId: emp._id, meta: { code, name: emp.name, organization: i.organization } });
     res.status(201).json({ _id: emp._id, code });
   }),
 );
@@ -300,6 +317,9 @@ internsRouter.get(
     const showMoney = manages(req) || isSelf(req, i);
     res.json({
       ...full,
+      source: full!.source ?? 'college',
+      organization: orgOf(full!),
+      payBasis: full!.payBasis ?? 'monthly',
       _id: req.params.id, // pages address an intern by their employee id
       internshipId: full!._id,
       stipend: showMoney ? full!.stipend : undefined,
@@ -325,7 +345,18 @@ internsRouter.put(
       { _id: req.params.id },
       { $set: { name: b.name, email: b.email || null, phone: b.phone || null, department: b.department || null, designation: b.designation || 'Intern', manager: b.mentor || null } },
     );
-    i.set({ college: b.college, course: b.course || '', yearOfStudy: b.yearOfStudy || '', startDate: b.startDate, endDate: b.endDate, mentor: b.mentor || null, stipend: paise(b.stipend) });
+    i.set({
+      source: b.source,
+      organization: b.organization,
+      course: b.course || '',
+      yearOfStudy: b.yearOfStudy || '',
+      startDate: b.startDate,
+      endDate: b.endDate,
+      mentor: b.mentor || null,
+      payBasis: b.payBasis,
+      stipend: paise(b.stipend),
+      hoursPerWeek: b.payBasis === 'hourly' ? b.hoursPerWeek : undefined,
+    });
     await i.save();
     await audit({ actor: req.user!.id, action: 'intern.update', entity: 'Employee', entityId: req.params.id, meta: { name: b.name } });
     res.json({ ok: true });
@@ -388,6 +419,103 @@ internsRouter.post(
   }),
 );
 
+/** Hours worked in a month (from attendance check-in/out, and time logged on intern tasks): the basis for hourly stipends. */
+internsRouter.get(
+  '/:id/hours',
+  idParam,
+  validate(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }), 'query'),
+  ah(async (req, res) => {
+    const i = await internshipOf(req, req.params.id);
+    if (!manages(req) && !isSelf(req, i)) throw forbidden('Only HR or the intern can see this');
+    const month = String(req.query.month);
+    const range = { $gte: `${month}-01`, $lte: `${month}-31` };
+    const [att, logs] = await Promise.all([
+      AttendanceDay.aggregate([
+        { $match: { employee: i.employee, date: range } },
+        { $group: { _id: null, minutes: { $sum: '$workedMinutes' }, days: { $sum: { $cond: [{ $gt: ['$workedMinutes', 0] }, 1, 0] } } } },
+      ]),
+      InternTask.aggregate([{ $match: { intern: i.employee } }, { $unwind: '$logs' }, { $match: { 'logs.date': range } }, { $group: { _id: null, minutes: { $sum: '$logs.minutes' } } }]),
+    ]);
+    const payBasis = i.payBasis ?? 'monthly';
+    const attendanceMinutes = att[0]?.minutes ?? 0;
+    res.json({
+      month,
+      attendanceMinutes,
+      daysWorked: att[0]?.days ?? 0,
+      taskMinutes: logs[0]?.minutes ?? 0,
+      payBasis,
+      rate: i.stipend,
+      // hourly: attendance hours x rate, rounded to the rupee (paise)
+      suggestedAmount: payBasis === 'hourly' ? Math.round(((attendanceMinutes / 60) * (i.stipend ?? 0)) / 100) * 100 : i.stipend,
+    });
+  }),
+);
+
+/**
+ * Remove an intern entirely, e.g. one added by mistake or who never joined. Their attendance, leave, timesheets,
+ * work, documents and login go too. Someone who has since been hired, or who leads records others depend on
+ * (a project, meetings, enquiries, ideas), cannot be deleted: mark them Completed or Dropped instead.
+ */
+internsRouter.delete(
+  '/:id',
+  idParam,
+  ah(async (req, res) => {
+    if (!manages(req)) throw forbidden('Only HR or Management can delete interns');
+    const i = await internshipOf(req, req.params.id);
+    if (i.status === 'converted') throw conflict('This intern has been hired as an employee and cannot be deleted here');
+    const emp = i.employee;
+    const [leads, organises, owns, ideas] = await Promise.all([
+      Project.countDocuments({ manager: emp }),
+      Meeting.countDocuments({ organizer: emp }),
+      Enquiry.countDocuments({ owner: emp }),
+      Idea.countDocuments({ author: emp }),
+    ]);
+    const blockers = [
+      leads && `manages ${leads} project(s)`,
+      organises && `organised ${organises} meeting(s)`,
+      owns && `owns ${owns} enquiry(ies)`,
+      ideas && `posted ${ideas} idea(s)`,
+    ].filter(Boolean);
+    if (blockers.length) throw conflict(`Cannot delete: this intern ${blockers.join(', ')}. Reassign those first, or mark the internship Dropped instead.`);
+
+    const person = await Employee.findById(emp).select('code name').lean();
+    const user = await User.findOne({ employee: emp }).select('_id email');
+    const docs = await InternDoc.find({ intern: emp }).select('_id').lean();
+    await Promise.all([
+      InternTask.deleteMany({ intern: emp }),
+      InternDocFile.deleteMany({ doc: { $in: docs.map((d) => d._id) } }),
+      InternDoc.deleteMany({ intern: emp }),
+      AttendanceDay.deleteMany({ employee: emp }),
+      RegularizationRequest.deleteMany({ employee: emp }),
+      LeaveBalance.deleteMany({ employee: emp }),
+      LeaveRequest.deleteMany({ employee: emp }),
+      TimeLog.deleteMany({ employee: emp }),
+      Timesheet.deleteMany({ employee: emp }),
+      Project.updateMany({ members: emp }, { $pull: { members: emp } }),
+      Task.updateMany({ assignee: emp }, { $set: { assignee: null } }),
+      Meeting.updateMany({ attendees: emp }, { $pull: { attendees: emp } }),
+      Idea.updateMany({ voters: emp }, { $pull: { voters: emp } }),
+      Milestone.updateMany({ owner: emp }, { $set: { owner: null } }),
+      ConfidentialFolder.updateMany({ editors: emp }, { $pull: { editors: emp } }),
+      Employee.updateMany({ manager: emp }, { $set: { manager: null } }),
+    ]);
+    if (user) {
+      await Promise.all([RefreshToken.deleteMany({ user: user._id }), Notification.deleteMany({ user: user._id })]);
+      await user.deleteOne();
+    }
+    await Internship.deleteOne({ _id: i._id });
+    await Employee.deleteOne({ _id: emp });
+    await audit({
+      actor: req.user!.id,
+      action: 'intern.delete',
+      entity: 'Employee',
+      entityId: emp,
+      before: { code: person?.code, name: person?.name, organization: orgOf(i), login: user?.email },
+    });
+    res.json({ ok: true });
+  }),
+);
+
 internsRouter.put(
   '/:id/checklist',
   idParam,
@@ -424,7 +552,7 @@ internsRouter.post(
     const i = await internshipOf(req, req.params.id);
     const b = req.body as z.infer<typeof stipendPaymentSchema>;
     if (i.stipendPayments.some((p) => p.month === b.month)) throw conflict(`A payment for ${b.month} is already recorded`);
-    i.stipendPayments.push({ month: b.month, amount: paise(b.amount), paidOn: b.paidOn, note: b.note || '', byName: await by(req), at: now() } as never);
+    i.stipendPayments.push({ month: b.month, hours: b.hours, amount: paise(b.amount), paidOn: b.paidOn, note: b.note || '', byName: await by(req), at: now() } as never);
     await i.save();
     await audit({ actor: req.user!.id, action: 'intern.stipend_paid', entity: 'Employee', entityId: req.params.id, meta: { month: b.month, amount: paise(b.amount) } });
     res.status(201).json({ ok: true });

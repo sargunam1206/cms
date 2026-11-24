@@ -152,8 +152,8 @@ function Lines({ lines, total, warnings }: { lines: FLine[]; total: number; warn
 }
 
 function NewSettlement({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const emps = useGet<Paged<EmployeeRef & { exitDate?: string }>>(['employees', 'leaving'], '/employees', { limit: 500, status: 'notice' }, open);
-  const exited = useGet<Paged<EmployeeRef & { exitDate?: string }>>(['employees', 'exited'], '/employees', { limit: 500, status: 'active' }, open);
+  const emps = useGet<Paged<EmployeeRef & { exitDate?: string }>>(['employees', 'leaving'], '/employees', { limit: 500, status: 'notice', type: 'employee' }, open);
+  const exited = useGet<Paged<EmployeeRef & { exitDate?: string }>>(['employees', 'exited'], '/employees', { limit: 500, status: 'active', type: 'employee' }, open);
   const [employee, setEmployee] = useState('');
   const [gratuity, setGratuity] = useState(false);
   const [extra, setExtra] = useState<Extra[]>([]);

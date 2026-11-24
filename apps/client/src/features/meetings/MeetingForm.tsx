@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { personId, typeLabel, type MeetingAction, type MeetingDetail, type MeetingOptions } from './types';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 interface FormState {
   title: string;
@@ -192,11 +193,7 @@ export function MeetingForm({
                 <Input value={a.text} onChange={(e) => setAction(i, { text: e.target.value })} placeholder="What needs to happen" />
                 <Select value={a.owner} onChange={(e) => setAction(i, { owner: e.target.value })}>
                   <option value="">Owner…</option>
-                  {people.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name}
-                    </option>
-                  ))}
+                  <PersonOptions people={people} label={(p) => p.name} />
                 </Select>
                 <Input type="date" value={a.dueDate} onChange={(e) => setAction(i, { dueDate: e.target.value })} />
                 <Button type="button" size="icon" variant="ghost" aria-label="Remove action" onClick={() => set('actions', f.actions.filter((_, j) => j !== i))}>

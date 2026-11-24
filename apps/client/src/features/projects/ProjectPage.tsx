@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Search } from 'lucide-react';
+import { Pencil, Plus, Search } from 'lucide-react';
 import { useDebounced, useGet } from '@/api/hooks';
 import { fmtDate } from '@/lib/utils';
 import { PageHeader, Spinner, Stat } from '@/components/common/page';
@@ -57,9 +57,6 @@ export function ProjectPage() {
 
   return (
     <>
-      <Link to="/projects" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> All projects
-      </Link>
       <PageHeader
         title={`${p.name}`}
         description={`${p.code} · ${p.client?.name ?? 'Internal'} · ${BILLING.find((b) => b.value === p.billingType)?.label}`}

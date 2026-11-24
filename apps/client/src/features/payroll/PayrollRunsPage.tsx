@@ -182,7 +182,7 @@ export function PayrollRunPage() {
       },
     },
   );
-  const del = useSend<void>('delete', `/payroll/runs/${id}`, { ...inv, success: 'Run deleted', onSuccess: () => nav('/payroll/runs') });
+  const del = useSend<void>('delete', `/payroll/runs/${id}`, { ...inv, success: 'Run deleted', onSuccess: () => nav('/payroll/runs', { replace: true }) });
 
   if (isLoading || !data) return <Spinner />;
   const { run, payslips } = data;

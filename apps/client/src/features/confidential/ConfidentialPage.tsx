@@ -16,12 +16,14 @@ import { Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { fmtSize } from '@/features/projects/TaskFiles';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 interface PersonRef {
   _id: string;
   name: string;
   code?: string;
   designation?: string;
+  type?: string;
 }
 interface FolderRow {
   _id: string;
@@ -359,14 +361,7 @@ function FolderDialog({ editing, onClose }: { editing: FolderRow | 'new' | null;
             </div>
             <Select className="mt-1.5" value="" onChange={(e) => e.target.value && setEditors([...new Set([...editors, e.target.value])])}>
               <option value="">Add an editor…</option>
-              {people.data
-                ?.filter((p) => !editors.includes(p._id))
-                .map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name}
-                    {p.designation ? ` · ${p.designation}` : ''}
-                  </option>
-                ))}
+              <PersonOptions people={(people.data ?? []).filter((p) => !editors.includes(p._id))} label={(p) => `${p.name}${p.designation ? ` · ${p.designation}` : ''}`} />
             </Select>
             <p className="mt-1 text-xs text-muted-foreground">Management (and Admin) can always edit. Everyone in Admin, Management and HR can view and download.</p>
           </Field>

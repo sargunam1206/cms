@@ -1,3 +1,5 @@
+import type { InternPayBasis, InternSource } from '@cms/shared';
+
 export interface PersonRef {
   _id: string;
   name: string;
@@ -9,13 +11,16 @@ export interface PersonRef {
 export interface InternRow {
   _id: string; // the intern's employee id
   employee: PersonRef & { email?: string; phone?: string; status: string };
-  college: string;
+  source: InternSource;
+  organization: string;
   course?: string;
   startDate: string;
   endDate: string;
   mentor?: PersonRef | null;
   status: InternStatus;
+  payBasis: InternPayBasis;
   stipend: number;
+  hoursPerWeek?: number;
   onboarding: { done: number; total: number };
   work: { total: number; approved: number; submitted: number };
 }
@@ -25,16 +30,19 @@ export type InternStatus = 'onboarding' | 'active' | 'completed' | 'dropped' | '
 export interface InternDetail {
   _id: string;
   employee: PersonRef & { email?: string; phone?: string; status: string; type: string };
-  college: string;
+  source: InternSource;
+  organization: string;
   course?: string;
   yearOfStudy?: string;
   startDate: string;
   endDate: string;
   mentor?: PersonRef | null;
   status: InternStatus;
+  payBasis: InternPayBasis;
   stipend?: number;
+  hoursPerWeek?: number;
   checklist: { _id: string; label: string; done: boolean; doneAt?: string; doneByName?: string; note?: string }[];
-  stipendPayments?: { _id: string; month: string; amount: number; paidOn: string; note?: string; byName?: string }[];
+  stipendPayments?: { _id: string; month: string; hours?: number; amount: number; paidOn: string; note?: string; byName?: string }[];
   allocations: { _id: string; project: { _id: string; code: string; name: string }; from: string; to?: string; note?: string; byName?: string }[];
   completion?: { date?: string; rating?: number; feedback?: string; certificateIssued?: boolean; byName?: string };
   history: { at: string; byName?: string; from?: string; to: string }[];
@@ -80,4 +88,6 @@ export const TASK_STATUS_LABEL: Record<InternTaskRow['status'], string> = {
   redo: 'Redo',
 };
 export const inr = (paise?: number) => (paise == null ? '—' : `₹${(paise / 100).toLocaleString('en-IN')}`);
+/** "₹8,000/mo", "₹150/hr" or "Unpaid". */
+export const payText = (i: { payBasis?: InternPayBasis; stipend?: number }) => (!i.stipend ? 'Unpaid' : `${inr(i.stipend)}${i.payBasis === 'hourly' ? '/hr' : '/mo'}`);
 export const hm = (min: number) => `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m`;

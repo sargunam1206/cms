@@ -48,6 +48,10 @@ usersRouter.patch(
     if (String(req.user!.id) === req.params.id && rest.status === 'disabled') throw badRequest('You cannot disable yourself');
     if (rest.employee && (await User.exists({ employee: rest.employee, _id: { $ne: req.params.id } })))
       throw conflict('That employee already has a login');
+    if (rest.email) {
+      rest.email = rest.email.trim().toLowerCase();
+      if (await User.exists({ email: rest.email, _id: { $ne: req.params.id } })) throw conflict('Another login already uses that email');
+    }
     const update: Record<string, unknown> = { ...rest };
     if (password) update.passwordHash = await hashPassword(password);
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
@@ -63,6 +67,22 @@ usersRouter.patch(
       after: { ...rest, passwordReset: !!password },
     });
     res.json({ _id: user._id, email: user.email });
+  }),
+);
+
+usersRouter.delete(
+  '/:id',
+  ah(async (req, res) => {
+    if (String(req.user!.id) === req.params.id) throw badRequest('You cannot delete your own login');
+    const user = await User.findById(req.params.id).populate<{ role: { _id: unknown; name: string } }>('role', 'name');
+    if (!user) throw notFound('User');
+    if (user.role?.name === 'Admin' && (await User.countDocuments({ role: user.role._id, status: 'active', _id: { $ne: user._id } })) === 0) {
+      throw badRequest('This is the only active Admin login; it cannot be deleted');
+    }
+    await RefreshToken.deleteMany({ user: user._id });
+    await user.deleteOne();
+    await audit({ actor: req.user!.id, action: 'user.delete', entity: 'User', entityId: user._id, before: { email: user.email, role: user.role?.name, employee: user.employee } });
+    res.status(204).end();
   }),
 );
 

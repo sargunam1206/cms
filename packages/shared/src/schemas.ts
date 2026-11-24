@@ -46,6 +46,7 @@ export const createUserSchema = z.object({
   employee: objectId.optional(),
 });
 export const updateUserSchema = z.object({
+  email: z.string().email().optional(),
   role: objectId.optional(),
   employee: objectId.nullable().optional(),
   status: z.enum(['active', 'disabled']).optional(),
@@ -58,6 +59,14 @@ export const employeeSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().max(20).optional(),
+  address: z.string().max(300).optional(),
+  emergencyContact: z
+    .object({
+      name: z.string().max(100).optional(),
+      relation: z.string().max(40).optional(),
+      phone: z.string().trim().regex(/^[0-9+\-\s]{7,15}$/, 'Enter a valid phone number').optional().or(z.literal('')),
+    })
+    .optional(),
   department: z.string().max(60).optional(),
   designation: z.string().max(60).optional(),
   manager: objectId.nullable().optional().or(z.literal('')),

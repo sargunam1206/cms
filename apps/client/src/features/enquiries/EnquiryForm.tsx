@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import type { Person } from '@/features/projects/types';
 import type { DupMatch, EnquiryRow, Options } from './types';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 const tomorrow = () => dayjs().add(1, 'day').format('YYYY-MM-DD');
 const BLANK = { name: '', phone: '', email: '', company: '', source: '', nextFollowUp: tomorrow(), owner: '', note: '' };
@@ -95,11 +96,7 @@ export function EnquiryForm({ open, enquiry, onClose, onSaved }: { open: boolean
             <Field label="Owner" className="sm:col-span-2">
               <Select value={f.owner} onChange={set('owner')}>
                 <option value="">Me</option>
-                {people.data.map((p) => (
-                  <option key={p._id} value={p._id}>
-                    {p.name}
-                  </option>
-                ))}
+                <PersonOptions people={people.data} label={(p) => p.name} />
               </Select>
             </Field>
           )}

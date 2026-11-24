@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { PERMISSIONS as P, type Permission } from '@cms/shared';
 import { useDebounced, useGet, useSend } from '@/api/hooks';
 import type { Employee, Paged, Role, UserRow } from '@/api/types';
@@ -14,6 +14,7 @@ import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 export function UsersRolesPage() {
   const { can } = useAuth();
@@ -133,6 +134,7 @@ function UsersTab() {
 
 function UserDialog({ editing, roles, onClose }: { editing: UserRow | 'new' | null; roles: Role[]; onClose: () => void }) {
   const isNew = editing === 'new';
+  const { user: me } = useAuth();
   const emps = useGet<Paged<Employee>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' }, !!editing);
   const [form, setForm] = useState({ email: '', password: '', role: '', employee: '', status: 'active' });
   useEffect(() => {
@@ -147,7 +149,12 @@ function UserDialog({ editing, roles, onClose }: { editing: UserRow | 'new' | nu
     body: () =>
       isNew
         ? { email: form.email, password: form.password, role: form.role, employee: form.employee || undefined }
-        : { role: form.role, employee: form.employee || null, status: form.status, password: form.password || undefined },
+        : { email: form.email.trim(), role: form.role, employee: form.employee || null, status: form.status, password: form.password || undefined },
+  });
+  const del = useSend('delete', `/users/${editing && editing !== 'new' ? editing._id : ''}`, {
+    invalidate: [['users']],
+    success: 'Login deleted',
+    onSuccess: onClose,
   });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
 
@@ -158,11 +165,9 @@ function UserDialog({ editing, roles, onClose }: { editing: UserRow | 'new' | nu
           <DialogTitle>{isNew ? 'New login' : `Edit ${form.email}`}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          {isNew && (
-            <Field label="Email">
-              <Input type="email" value={form.email} onChange={set('email')} />
-            </Field>
-          )}
+          <Field label="Email">
+            <Input type="email" value={form.email} onChange={set('email')} />
+          </Field>
           <Field label={isNew ? 'Password' : 'Reset password (leave blank to keep)'}>
             <Input type="password" autoComplete="new-password" value={form.password} onChange={set('password')} />
           </Field>
@@ -178,11 +183,7 @@ function UserDialog({ editing, roles, onClose }: { editing: UserRow | 'new' | nu
           <Field label="Linked employee">
             <Select value={form.employee} onChange={set('employee')}>
               <option value="">— none —</option>
-              {emps.data?.items.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.name} ({e.code})
-                </option>
-              ))}
+              <PersonOptions people={emps.data?.items ?? []} />
             </Select>
           </Field>
           {!isNew && (
@@ -194,7 +195,23 @@ function UserDialog({ editing, roles, onClose }: { editing: UserRow | 'new' | nu
             </Field>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center justify-between">
+          {!isNew && editing ? (
+            editing._id === me?.id ? (
+              <span className="text-xs text-muted-foreground">This is your own login; it cannot be deleted.</span>
+            ) : (
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                disabled={del.isPending}
+                onClick={() => window.confirm(`Delete the login ${editing.email}? They will no longer be able to sign in. The employee record is kept.`) && del.mutate(undefined)}
+              >
+                <Trash2 /> Delete login
+              </Button>
+            )
+          ) : (
+            <span />
+          )}
           <Button onClick={() => save.mutate(undefined)} disabled={save.isPending}>
             Save
           </Button>

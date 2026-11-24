@@ -6,6 +6,7 @@ export interface Person {
   code: string;
   department?: string;
   designation?: string;
+  type?: string;
 }
 
 export interface MeetingAction {

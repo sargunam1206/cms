@@ -8,6 +8,8 @@ const employeeSchema = new Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, lowercase: true, trim: true },
     phone: String,
+    address: String,
+    emergencyContact: { name: String, relation: String, phone: String },
     department: String,
     designation: String,
     manager: { type: Schema.Types.ObjectId, ref: 'Employee', default: null, index: true },

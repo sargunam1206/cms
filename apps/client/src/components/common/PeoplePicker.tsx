@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Checkbox, Input } from '@/components/ui/form-controls';
+import { splitPeople } from './PersonOptions';
 
 export interface PickPerson {
   _id: string;
@@ -8,6 +9,7 @@ export interface PickPerson {
   code?: string;
   department?: string;
   designation?: string;
+  type?: string;
 }
 
 /**
@@ -19,6 +21,11 @@ export function PeoplePicker({ people, value, onChange, label = 'people' }: { pe
   const chosen = new Set(value);
   const byId = useMemo(() => new Map(people.map((p) => [p._id, p])), [people]);
   const shown = people.filter((p) => `${p.name} ${p.code ?? ''} ${p.department ?? ''} ${p.designation ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const split = splitPeople(shown);
+  const groups = [
+    { title: 'Employees', list: split.employees },
+    { title: 'Interns', list: split.interns },
+  ].filter((g) => g.list.length);
   const allShown = shown.length > 0 && shown.every((p) => chosen.has(p._id));
   const toggle = (id: string) => onChange(chosen.has(id) ? value.filter((x) => x !== id) : [...value, id]);
   const toggleShown = () => {
@@ -57,12 +64,17 @@ export function PeoplePicker({ people, value, onChange, label = 'people' }: { pe
         </div>
         <div className="max-h-48 overflow-y-auto p-1" role="group" aria-label={`Choose ${label}`}>
           {!shown.length && <p className="px-2 py-1.5 text-sm text-muted-foreground">No one matches.</p>}
-          {shown.map((p) => (
-            <label key={p._id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent">
-              <Checkbox checked={chosen.has(p._id)} onChange={() => toggle(p._id)} aria-label={p.name} />
-              <span className="font-medium">{p.name}</span>
-              <span className="truncate text-xs text-muted-foreground">{[p.code, p.department ?? p.designation].filter(Boolean).join(' · ')}</span>
-            </label>
+          {groups.map((g) => (
+            <div key={g.title}>
+              {groups.length > 1 && <div className="px-2 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.title}</div>}
+              {g.list.map((p) => (
+                <label key={p._id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent">
+                  <Checkbox checked={chosen.has(p._id)} onChange={() => toggle(p._id)} aria-label={p.name} />
+                  <span className="font-medium">{p.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{[p.code, p.department ?? p.designation].filter(Boolean).join(' · ')}</span>
+                </label>
+              ))}
+            </div>
           ))}
         </div>
         <div className="border-t px-2 py-1 text-xs text-muted-foreground">

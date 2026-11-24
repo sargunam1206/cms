@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FolderPlus, Pencil, Repeat } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { FolderPlus, Pencil, Repeat } from 'lucide-react';
 import { useGet, useSend } from '@/api/hooks';
 import { fmtDate } from '@/lib/utils';
 import { PageHeader, Spinner } from '@/components/common/page';
@@ -13,12 +13,14 @@ import type { Person } from '@/features/projects/types';
 import { EnquiryForm } from './EnquiryForm';
 import { FollowUp, StatusBadge } from './EnquiriesPage';
 import { isClosed, type EnquiryDetail, type Options } from './types';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 const tomorrow = () => dayjs().add(1, 'day').format('YYYY-MM-DD');
 const KIND: Record<string, string> = { created: 'Started', note: 'Note', status: 'Status', followup: 'Follow-up', owner: 'Owner', edit: 'Edited', converted: 'Converted' };
 
 export function EnquiryPage() {
   const { id } = useParams();
+  const nav = useNavigate();
   const { data: e, isError } = useGet<EnquiryDetail>(['enquiries', 'detail', id], `/enquiries/${id}`);
   const options = useGet<Options>(['enquiries', 'options'], '/enquiries/options');
   const [dialog, setDialog] = useState<'edit' | 'status' | 'convert' | null>(null);
@@ -33,7 +35,7 @@ export function EnquiryPage() {
       setNoteDate('');
     },
   });
-  const del = useSend<void>('delete', `/enquiries/${id}`, { invalidate: [['enquiries']], success: 'Enquiry deleted', onSuccess: () => history.back() });
+  const del = useSend<void>('delete', `/enquiries/${id}`, { invalidate: [['enquiries']], success: 'Enquiry deleted', onSuccess: () => nav('/enquiries', { replace: true }) });
   const o = options.data;
 
   if (isError)
@@ -50,9 +52,6 @@ export function EnquiryPage() {
 
   return (
     <>
-      <Link to="/enquiries" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> All enquiries
-      </Link>
       <PageHeader
         title={e.name}
         description={[e.company, e.phone, e.email].filter(Boolean).join(' · ')}
@@ -262,11 +261,7 @@ function ConvertDialog({ open, e, onClose }: { open: boolean; e: EnquiryDetail; 
           <Field label="Project manager" className="sm:col-span-2">
             <Select value={f.manager} onChange={set('manager')}>
               <option value="">Choose…</option>
-              {people.data?.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name}
-                </option>
-              ))}
+              <PersonOptions people={people.data ?? []} label={(p) => p.name} />
             </Select>
           </Field>
         </div>

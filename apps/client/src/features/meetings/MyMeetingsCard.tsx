@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { Video } from 'lucide-react';
+import { CalendarClock, CheckSquare, Coffee, Video } from 'lucide-react';
 import { useGet } from '@/api/hooks';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashCard } from '@/features/dashboard/widgets';
 import { TypeChip } from './MeetingsPage';
 
 interface MyDay {
@@ -16,44 +16,47 @@ export function MyMeetingsCard() {
   if (!data) return null;
   const today = dayjs().format('YYYY-MM-DD');
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Meetings today</CardTitle>
-        <Link to="/meetings" className="text-sm text-primary hover:underline">
-          All meetings →
-        </Link>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {!data.today.length && <p className="text-muted-foreground">No meetings today.</p>}
-        {data.today.map((m) => (
-          <Link key={m._id} to={`/meetings/${m._id}`} className="flex items-center gap-3 rounded-md border p-2 hover:bg-accent/40">
-            <div className="w-24 shrink-0 font-medium">
-              {m.start}–{m.end}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{m.title}</div>
-              <div className="truncate text-xs text-muted-foreground">{m.location}</div>
-            </div>
-            {m.link && <Video className="h-4 w-4 text-primary" />}
-            <TypeChip type={m.type} />
-          </Link>
-        ))}
-        {!!data.actions.length && (
-          <div className="border-t pt-3">
-            <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">My open meeting actions</div>
-            {data.actions.slice(0, 5).map((a) => (
-              <Link key={a._id} to={`/meetings/${a.meetingId}`} className="block py-0.5 hover:underline">
+    <DashCard title="Today's meetings" icon={CalendarClock} tone="violet" action={{ to: '/meetings', label: 'All meetings' }}>
+      {!data.today.length ? (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          <Coffee className="h-5 w-5 shrink-0" /> No meetings today.
+        </div>
+      ) : (
+        <ol className="relative ml-1 space-y-3 border-l-2 border-violet-200 pl-4 text-sm">
+          {data.today.map((m) => (
+            <li key={m._id} className="relative">
+              <span className="absolute -left-[23px] top-1.5 h-3 w-3 rounded-full border-2 border-background bg-violet-500" />
+              <Link to={`/meetings/${m._id}`} className="block rounded-md hover:bg-accent/40">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{m.start}</span>–{m.end}
+                  {m.link && <Video className="h-3.5 w-3.5 text-primary" />}
+                  <TypeChip type={m.type} />
+                </div>
+                <div className="truncate font-medium">{m.title}</div>
+                {m.location && <div className="truncate text-xs text-muted-foreground">{m.location}</div>}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+      {!!data.actions.length && (
+        <div className="mt-4 border-t pt-3 text-sm">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">My open meeting actions</div>
+          {data.actions.slice(0, 5).map((a) => (
+            <Link key={a._id} to={`/meetings/${a.meetingId}`} className="flex items-start gap-2 py-1 hover:underline">
+              <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0">
                 {a.text}
                 <span className="text-xs text-muted-foreground">
                   {' '}
                   · {a.meeting}
                   {a.dueDate && <span className={a.dueDate < today ? 'font-medium text-red-600' : ''}> · due {dayjs(a.dueDate).format('DD MMM')}</span>}
                 </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </DashCard>
   );
 }

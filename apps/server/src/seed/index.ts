@@ -8,6 +8,7 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { hashPassword } from '../modules/auth/service';
 import { Employee } from '../modules/employees/model';
+import { Internship } from '../modules/interns/model';
 import { LeaveType } from '../modules/leave/model';
 import { SalaryComponent, SalaryTemplate } from '../modules/payroll/model';
 import { Setting } from '../modules/settings/model';
@@ -113,6 +114,12 @@ async function main() {
     await Role.updateOne({ name: 'Intern' }, { $addToSet: { permissions: PERMISSIONS.ENQUIRIES_SELF } });
     await Setting.create({ key: 'migration.internEnquiries', value: { done: true }, effectiveFrom: '1970-01-01' });
     logger.info('Interns can now log their own enquiries');
+  }
+  // Interns may now come from a college or a company: older records keep their college as the organisation
+  if (!(await Setting.exists({ key: 'migration.internOrganization' }))) {
+    const r = await Internship.updateMany({ organization: { $exists: false } }, [{ $set: { organization: '$college', source: 'college', payBasis: 'monthly' } }]);
+    await Setting.create({ key: 'migration.internOrganization', value: { done: true }, effectiveFrom: '1970-01-01' });
+    logger.info(`Interns: organisation filled in on ${r.modifiedCount} record(s)`);
   }
   await Setting.updateOne({ key: 'enquiryOptions', effectiveFrom: '1970-01-01' }, { $setOnInsert: { value: DEFAULT_ENQUIRY_OPTIONS } }, { upsert: true });
 

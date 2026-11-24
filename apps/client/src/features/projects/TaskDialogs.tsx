@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { PRIORITIES, TASK_STATUSES, isOverdue, priorityLabel, statusLabel, type ProjectDetail, type TaskRow } from './types';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 const PRIORITY_VARIANT: Record<string, 'secondary' | 'default' | 'warning' | 'destructive'> = { low: 'secondary', medium: 'default', high: 'warning', urgent: 'destructive' };
 export const PriorityBadge = ({ priority }: { priority: string }) => <Badge variant={PRIORITY_VARIANT[priority] ?? 'secondary'}>{priorityLabel(priority)}</Badge>;
@@ -67,11 +68,7 @@ export function TaskFormDialog({ project, task, open, onClose, defaultStatus }: 
           <Field label="Assignee">
             <Select value={f.assignee} onChange={set('assignee')} disabled={lockAssignee} title={lockAssignee ? 'Only the project manager can reassign' : undefined}>
               {!lockAssignee && <option value="">Unassigned</option>}
-              {team.map((m) => (
-                <option key={m._id} value={m._id}>
-                  {m.name}
-                </option>
-              ))}
+              <PersonOptions people={team} label={(m) => m.name} />
             </Select>
           </Field>
           <Field label="Priority">

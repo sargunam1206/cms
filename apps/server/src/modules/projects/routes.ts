@@ -25,7 +25,7 @@ const idParam = validate(z.object({ id: objectId }), 'params');
 
 /** Blank strings from forms become null so clearing a field really clears it. */
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === '' ? null : v])) as T;
-const EMP = 'name code';
+const EMP = 'name code type';
 
 // ===================== Clients =====================
 projectsRouter.get(
@@ -74,7 +74,7 @@ projectsRouter.get(
   '/people',
   requirePermission(P.PROJECTS_MANAGE, P.PROJECTS_VIEW),
   ah(async (_req, res) => {
-    res.json(await Employee.find({ status: { $ne: 'exited' } }).select('name code department designation').sort({ name: 1 }).limit(1000).lean());
+    res.json(await Employee.find({ status: { $ne: 'exited' } }).select('name code department designation type').sort({ name: 1 }).limit(1000).lean());
   }),
 );
 

@@ -15,7 +15,7 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Checkbox, Field, Input, Select } from '@/components/ui/form-controls';
+import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 
@@ -202,6 +202,8 @@ const blank: EmployeeInput = {
   name: '',
   email: '',
   phone: '',
+  address: '',
+  emergencyContact: { name: '', relation: '', phone: '' },
   department: '',
   designation: '',
   manager: null,
@@ -222,7 +224,7 @@ const blank: EmployeeInput = {
 
 function EmployeeDialog({ editing, onClose }: { editing: Employee | 'new' | null; onClose: () => void }) {
   const isNew = editing === 'new';
-  const all = useGet<Paged<Employee>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' }, !!editing);
+  const all = useGet<Paged<Employee>>(['employees', 'all', 'employee'], '/employees', { limit: 500, status: 'active', type: 'employee' }, !!editing);
   const { register, handleSubmit, reset, watch, formState } = useForm<EmployeeInput>({ resolver: zodResolver(employeeSchema) });
 
   useEffect(() => {
@@ -233,6 +235,7 @@ function EmployeeDialog({ editing, onClose }: { editing: Employee | 'new' | null
       ...Object.fromEntries(Object.entries(editing).filter(([, v]) => v != null)),
       manager: editing.manager?._id ?? null,
       bank: { ...blank.bank, ...editing.bank },
+      emergencyContact: { ...blank.emergencyContact, ...editing.emergencyContact },
     } as EmployeeInput);
   }, [editing, reset]);
 
@@ -315,6 +318,24 @@ function EmployeeDialog({ editing, onClose }: { editing: Employee | 'new' | null
                 <Input type="date" {...register('exitDate')} />
               </Field>
             )}
+          </section>
+
+          <section>
+            <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Address & emergency contact</h4>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Address" error={e.address?.message} className="sm:col-span-3">
+                <Textarea rows={2} {...register('address')} />
+              </Field>
+              <Field label="Emergency contact name">
+                <Input {...register('emergencyContact.name')} />
+              </Field>
+              <Field label="Relationship">
+                <Input placeholder="e.g. Father, Spouse" {...register('emergencyContact.relation')} />
+              </Field>
+              <Field label="Emergency contact number" error={e.emergencyContact?.phone?.message}>
+                <Input type="tel" {...register('emergencyContact.phone')} />
+              </Field>
+            </div>
           </section>
 
           <section>

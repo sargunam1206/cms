@@ -7,11 +7,20 @@ const optText = (max: number) => z.string().trim().max(max).optional().or(z.lite
 export const INTERN_STATUS = ['onboarding', 'active', 'completed', 'dropped', 'converted'] as const;
 export type InternStatus = (typeof INTERN_STATUS)[number];
 
+/** Where the intern comes from: a college, another company (deputed / on contract), or elsewhere. */
+export const INTERN_SOURCES = ['college', 'company', 'other'] as const;
+export type InternSource = (typeof INTERN_SOURCES)[number];
+export const INTERN_SOURCE_LABEL: Record<InternSource, string> = { college: 'College', company: 'Company', other: 'Other' };
+
+/** How the stipend is worked out: a fixed monthly amount, or an hourly rate times the hours worked. */
+export const INTERN_PAY_BASIS = ['monthly', 'hourly'] as const;
+export type InternPayBasis = (typeof INTERN_PAY_BASIS)[number];
+
 /** Starting onboarding checklist for every new intern; HR can add or remove items per intern. */
 export const DEFAULT_INTERN_CHECKLIST = [
   'Offer letter sent',
   'Offer letter signed and returned',
-  'College letter / NOC received',
+  'College / company letter (NOC) received',
   'ID proof collected',
   'NDA / confidentiality signed',
   'Login and email created',
@@ -27,14 +36,19 @@ const internFields = {
   phone: optText(20),
   department: optText(80),
   designation: optText(80),
-  college: z.string().trim().min(2, 'College is required').max(150),
+  source: z.enum(INTERN_SOURCES).default('college'),
+  /** The college, company or other organisation the intern comes from. */
+  organization: z.string().trim().min(2, 'College / company name is required').max(150),
   course: optText(100),
   yearOfStudy: optText(30),
   startDate: day,
   endDate: day,
   mentor: id.nullable().optional().or(z.literal('')),
-  /** Monthly stipend in rupees (0 for unpaid). */
+  payBasis: z.enum(INTERN_PAY_BASIS).default('monthly'),
+  /** In rupees: per month, or per hour when payBasis is hourly (0 for unpaid). */
   stipend: z.coerce.number().min(0).max(1_000_000).default(0),
+  /** Hourly interns: the hours agreed per week (optional, for planning). */
+  hoursPerWeek: z.coerce.number().min(0).max(80).optional(),
 };
 
 export const internSchema = z
@@ -68,6 +82,8 @@ export const internChecklistSchema = z.object({
 
 export const stipendPaymentSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, 'Use YYYY-MM'),
+  /** Hourly interns: the hours paid for. */
+  hours: z.coerce.number().min(0).max(744).optional(),
   amount: z.coerce.number().min(0).max(1_000_000), // rupees
   paidOn: day,
   note: optText(200),

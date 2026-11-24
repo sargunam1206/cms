@@ -33,7 +33,7 @@ export function CheckInWidget() {
   const onLeave = rec?.status === 'leave';
 
   return (
-    <Card>
+    <Card className="relative h-full overflow-hidden pt-1 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-gradient-to-r before:from-blue-600 before:via-indigo-500 before:to-emerald-500">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <Clock className="h-4 w-4" /> Today
@@ -46,13 +46,13 @@ export function CheckInWidget() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <div className="text-3xl font-semibold tabular-nums">{serverNow.format('hh:mm:ss A')}</div>
+          <div className="text-4xl font-semibold tabular-nums tracking-tight text-blue-700">{serverNow.format('hh:mm:ss A')}</div>
           <div className="text-sm text-muted-foreground">
             {serverNow.format('dddd, DD MMM YYYY')}
             {today.data && ` · Shift ${today.data.shift.start}–${today.data.shift.end}`}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/60 p-3 text-sm">
           <div>
             <div className="text-muted-foreground">In</div>
             <div className="font-medium">{fmtTime(rec?.checkIn)}</div>
@@ -70,11 +70,11 @@ export function CheckInWidget() {
         {onLeave ? (
           <p className="text-sm text-muted-foreground">You are on leave today.</p>
         ) : !rec?.checkIn ? (
-          <Button className="w-full" onClick={() => checkIn.mutate(undefined)} disabled={checkIn.isPending || today.isLoading}>
+          <Button className="w-full bg-emerald-500 font-semibold text-white hover:bg-emerald-600" onClick={() => checkIn.mutate(undefined)} disabled={checkIn.isPending || today.isLoading}>
             <LogIn /> Check in
           </Button>
         ) : (
-          <Button variant="outline" className="w-full" onClick={() => checkOut.mutate(undefined)} disabled={checkOut.isPending}>
+          <Button className="w-full bg-orange-500 font-semibold text-white hover:bg-orange-600" onClick={() => checkOut.mutate(undefined)} disabled={checkOut.isPending}>
             <LogOut /> {rec.checkOut ? 'Update check-out' : 'Check out'}
           </Button>
         )}

@@ -1,8 +1,9 @@
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { useGet } from '@/api/hooks';
-import { Stat } from '@/components/common/page';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertOctagon, CalendarClock, ListTodo, Timer } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tile } from './widgets';
 import { hmFull, type Week } from '@/features/timesheets/TimesheetGrid';
 import type { TaskRow } from '@/features/projects/types';
 
@@ -14,23 +15,18 @@ export function MyWorkCard() {
   const overdue = open.data?.filter((t) => t.dueDate && t.dueDate < today).length ?? 0;
   const dueSoon = open.data?.filter((t) => t.dueDate && t.dueDate >= today && t.dueDate <= dayjs().add(2, 'day').format('YYYY-MM-DD')).length ?? 0;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">My work</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Link to="/my/tasks" className="block">
-          <Stat label="Open tasks" value={open.data?.length ?? '…'} />
+    <Card className="flex-1">
+      <div className="flex items-center justify-between px-5 pt-4">
+        <h3 className="text-sm font-semibold">My work</h3>
+        <Link to="/my/tasks" className="text-xs font-medium text-primary hover:underline">
+          My tasks →
         </Link>
-        <Link to="/my/tasks" className="block">
-          <Stat label="Overdue" value={overdue} tone={overdue ? 'bad' : undefined} />
-        </Link>
-        <Link to="/my/tasks" className="block">
-          <Stat label="Due in 2 days" value={dueSoon} tone={dueSoon ? 'warn' : undefined} />
-        </Link>
-        <Link to="/my/timesheet" className="block">
-          <Stat label="Logged this week" value={week.data ? `${hmFull(week.data.total)} h` : '…'} />
-        </Link>
+      </div>
+      <CardContent className="grid grid-cols-2 gap-1 p-3 sm:grid-cols-4">
+        <Tile icon={ListTodo} tone="blue" label="Open tasks" value={open.data?.length ?? '…'} to="/my/tasks" />
+        <Tile icon={AlertOctagon} tone={overdue ? 'red' : 'slate'} label="Overdue" value={overdue} to="/my/tasks" />
+        <Tile icon={CalendarClock} tone={dueSoon ? 'amber' : 'slate'} label="Due in 2 days" value={dueSoon} to="/my/tasks" />
+        <Tile icon={Timer} tone="violet" label="Logged this week" value={week.data ? `${hmFull(week.data.total)} h` : '…'} to="/my/timesheet" />
       </CardContent>
     </Card>
   );

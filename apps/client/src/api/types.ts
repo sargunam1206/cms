@@ -12,11 +12,15 @@ export interface EmployeeRef {
   _id: string;
   name: string;
   code: string;
+  /** 'intern' for interns */
+  type?: string;
 }
 
 export interface Employee extends EmployeeRef {
   email?: string;
   phone?: string;
+  address?: string;
+  emergencyContact?: { name?: string; relation?: string; phone?: string };
   department?: string;
   designation?: string;
   manager?: EmployeeRef | null;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { Bell } from 'lucide-react';
@@ -29,6 +30,7 @@ export function NotificationBell() {
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   // The panel is placed from the bell's position and kept inside the window, wherever the bell is (sidebar or top bar)
   const [pos, setPos] = useState<{ left: number; top: number; width: number }>({ left: 8, top: 56, width: 320 });
   const place = () => {
@@ -48,7 +50,7 @@ export function NotificationBell() {
     return () => clearInterval(t);
   }, [count, open]);
   useEffect(() => {
-    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && !panel.current?.contains(e.target as Node) && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', esc);
@@ -72,8 +74,9 @@ export function NotificationBell() {
           </span>
         )}
       </Button>
-      {open && (
-        <div role="dialog" aria-label="Notifications" className="fixed z-50 rounded-lg border bg-background shadow-lg" style={{ left: pos.left, top: pos.top, width: pos.width }}>
+      {open &&
+        createPortal(
+        <div ref={panel} role="dialog" aria-label="Notifications" className="fixed z-50 rounded-lg border bg-background shadow-lg" style={{ left: pos.left, top: pos.top, width: pos.width }}>
           <div className="flex items-center justify-between border-b px-3 py-2">
             <span className="text-sm font-semibold">Notifications</span>
             <Button size="sm" variant="ghost" disabled={!unread || readAll.isPending} onClick={() => readAll.mutate(undefined)}>
@@ -105,8 +108,9 @@ export function NotificationBell() {
               See all and preferences
             </Link>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }

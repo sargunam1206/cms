@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { inr } from './types';
 
 function EmployeeSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
-  const emps = useGet<Paged<EmployeeRef>>(['employees', 'all'], '/employees', { limit: 500, status: 'active' });
+  const emps = useGet<Paged<EmployeeRef>>(['employees', 'all', 'employee'], '/employees', { limit: 500, status: 'active', type: 'employee' });
   return (
     <Select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="w-64">
       <option value="">Select employee…</option>

@@ -509,6 +509,17 @@ describe('profile self-service', () => {
 });
 
 describe('list filters and input hardening', () => {
+  it('employees: address and emergency contact are saved, and the number is validated', async () => {
+    const hr = await createPerson(roles.HR);
+    const body = { code: 'AD01', name: 'Address Test', dateOfJoining: '2024-01-01', address: '12, Anna Salai, Chennai 600002', emergencyContact: { name: 'Ravi', relation: 'Father', phone: '98400 12345' } };
+    await request(app).post('/api/employees').set(hr.auth).send({ ...body, code: 'AD00', emergencyContact: { phone: 'call me' } }).expect(400);
+    const e = (await request(app).post('/api/employees').set(hr.auth).send(body).expect(201)).body;
+    expect(e).toMatchObject({ address: body.address, emergencyContact: body.emergencyContact });
+    const r = (await request(app).put(`/api/employees/${e._id}`).set(hr.auth).send({ ...body, address: '', emergencyContact: { name: 'Ravi', relation: 'Father', phone: '9840012345' } }).expect(200)).body;
+    expect(r.address ?? null).toBeNull();
+    expect(r.emergencyContact.phone).toBe('9840012345');
+  });
+
   it('employees: validated status, department (case-insensitive), departments list, exit date required', async () => {
     const hr = await createPerson(roles.HR);
     const mk = (code: string, department: string, extra = {}) =>

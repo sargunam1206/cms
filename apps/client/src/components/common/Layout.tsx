@@ -44,6 +44,7 @@ import { useImage } from '@/features/settings/CompanyTab';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { BackButton } from './BackButton';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { NotificationBell } from './NotificationBell';
 
@@ -191,6 +192,7 @@ export function Layout() {
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-8">
+          <BackButton />
           <Outlet />
         </main>
       </div>

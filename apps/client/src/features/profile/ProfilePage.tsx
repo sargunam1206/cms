@@ -91,6 +91,14 @@ export function ProfilePage() {
                   </Button>
                 </Row>
                 <Row label="Date of birth">{e.dateOfBirth ? fmtDate(e.dateOfBirth) : undefined}</Row>
+                <Row label="Address">{e.address && <span className="whitespace-pre-line">{e.address}</span>}</Row>
+                <Row label="Emergency contact">
+                  {e.emergencyContact?.phone && (
+                    <>
+                      {[e.emergencyContact.name, e.emergencyContact.relation && `(${e.emergencyContact.relation})`].filter(Boolean).join(' ')} {e.emergencyContact.phone}
+                    </>
+                  )}
+                </Row>
               </CardContent>
             </Card>
             <Card>

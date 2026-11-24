@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { Employee } from '../modules/employees/model';
-import { Internship } from '../modules/interns/model';
+import { InternTask, Internship } from '../modules/interns/model';
+import { AttendanceDay } from '../modules/attendance/model';
 import { Notification } from '../modules/notifications/model';
 import { Project } from '../modules/projects/model';
 import { User } from '../modules/users/model';
@@ -29,7 +30,7 @@ async function world() {
   const r = await request(app)
     .post('/api/interns')
     .set(hr.auth)
-    .send({ code, name: 'Priya Intern', email, college: 'Anna University', course: 'B.E. CSE', startDate: '2026-11-01', endDate: '2027-01-31', mentor: id(mentor), stipend: 8000, password: 'Intern@123' })
+    .send({ code, name: 'Priya Intern', email, organization: 'Anna University', course: 'B.E. CSE', startDate: '2026-11-01', endDate: '2027-01-31', mentor: id(mentor), stipend: 8000, password: 'Intern@123' })
     .expect(201);
   const internId = r.body._id as string;
   const login = await request(app).post('/api/auth/login').send({ email, password: 'Intern@123' }).expect(200);
@@ -60,7 +61,7 @@ describe('interns', () => {
 
   it('only HR adds interns; the mentor sees their intern, other managers do not; employees cannot open interns', async () => {
     const w = await world();
-    await request(app).post('/api/interns').set(w.mentor.auth).send({ code: 'X-1', name: 'Nope', college: 'X College', startDate: '2026-11-01', endDate: '2026-12-01' }).expect(403);
+    await request(app).post('/api/interns').set(w.mentor.auth).send({ code: 'X-1', name: 'Nope', organization: 'X College', startDate: '2026-11-01', endDate: '2026-12-01' }).expect(403);
     const mine = (await request(app).get('/api/interns').set(w.mentor.auth).expect(200)).body;
     expect(mine.items.map((x: any) => x._id)).toEqual([w.internId]);
     expect((await request(app).get('/api/interns').set(w.other.auth).expect(200)).body.items).toHaveLength(0);
@@ -127,6 +128,56 @@ describe('interns', () => {
     expect(mentorView.items.map((x: any) => x._id)).toContain(e._id);
     const otherView = (await request(app).get('/api/enquiries').set(w.other.auth).expect(200)).body;
     expect(otherView.items.map((x: any) => x._id)).not.toContain(e._id);
+  });
+
+  it('a company intern on an hourly basis: hours come from attendance and the amount from the rate', async () => {
+    const hr = await createPerson(roles.HR);
+    const code = `INT-H-${++n}`;
+    const r = await request(app)
+      .post('/api/interns')
+      .set(hr.auth)
+      .send({ code, name: 'Hourly Intern', source: 'company', organization: 'ABC Infotech', startDate: '2026-10-01', endDate: '2026-12-31', payBasis: 'hourly', stipend: 150, hoursPerWeek: 20 })
+      .expect(201);
+    const d = (await request(app).get(`/api/interns/${r.body._id}`).set(hr.auth).expect(200)).body;
+    expect(d).toMatchObject({ source: 'company', organization: 'ABC Infotech', payBasis: 'hourly', stipend: 15000, hoursPerWeek: 20 });
+
+    // 2 days in October: 4h and 6h30m = 10.5 hours at Rs 150 = Rs 1,575
+    await AttendanceDay.create([
+      { employee: r.body._id, date: '2026-10-05', workedMinutes: 240, status: 'present' },
+      { employee: r.body._id, date: '2026-10-06', workedMinutes: 390, status: 'present' },
+      { employee: r.body._id, date: '2026-11-02', workedMinutes: 480, status: 'present' },
+    ]);
+    const h = (await request(app).get(`/api/interns/${r.body._id}/hours`).query({ month: '2026-10' }).set(hr.auth).expect(200)).body;
+    expect(h).toMatchObject({ attendanceMinutes: 630, daysWorked: 2, suggestedAmount: 157500 });
+    await request(app).post(`/api/interns/${r.body._id}/stipend`).set(hr.auth).send({ month: '2026-10', hours: 10.5, amount: 1575, paidOn: '2026-11-01' }).expect(201);
+    const after = (await request(app).get(`/api/interns/${r.body._id}`).set(hr.auth)).body;
+    expect(after.stipendPayments[0]).toMatchObject({ month: '2026-10', hours: 10.5, amount: 157500 });
+
+    const list = (await request(app).get('/api/interns').query({ q: 'ABC Info' }).set(hr.auth).expect(200)).body;
+    expect(list.items.map((x: any) => x.organization)).toEqual(['ABC Infotech']);
+  });
+
+  it('HR deletes an intern with everything that belongs to them; a hired intern cannot be deleted', async () => {
+    const w = await world();
+    const mgmt = await createPerson(roles.Management);
+    const project = (await request(app).post('/api/projects').set(mgmt.auth).send({ code: `DP-${w.code}`.slice(0, 20), name: 'Del project', manager: id(w.mentor), members: [], status: 'active' }).expect(201)).body;
+    await request(app).post(`/api/interns/${w.internId}/allocations`).set(w.mentor.auth).send({ project: project._id, from: '2026-11-03' }).expect(201);
+    await request(app).post(`/api/interns/${w.internId}/tasks`).set(w.mentor.auth).send({ title: 'Read the docs' }).expect(201);
+    await AttendanceDay.create({ employee: w.internId, date: '2026-11-03', workedMinutes: 300, status: 'present' });
+
+    await request(app).delete(`/api/interns/${w.internId}`).set(w.mentor.auth).expect(403);
+    await request(app).delete(`/api/interns/${w.internId}`).set(w.hr.auth).expect(200);
+    expect(await Employee.exists({ _id: w.internId })).toBeNull();
+    expect(await Internship.exists({ employee: w.internId })).toBeNull();
+    expect(await User.exists({ employee: w.internId })).toBeNull();
+    expect(await InternTask.countDocuments({ intern: w.internId })).toBe(0);
+    expect(await AttendanceDay.countDocuments({ employee: w.internId })).toBe(0);
+    expect((await Project.findById(project._id).lean())!.members.map(String)).not.toContain(w.internId);
+    await request(app).post('/api/auth/login').send({ email: `${w.code.toLowerCase()}@college.test`, password: 'Intern@123' }).expect(401);
+
+    const w2 = await world();
+    await request(app).post(`/api/interns/${w2.internId}/convert`).set(w2.hr.auth).send({ dateOfJoining: '2027-02-01' }).expect(200);
+    await request(app).delete(`/api/interns/${w2.internId}`).set(w2.hr.auth).expect(409);
   });
 
   it('completion disables the login; conversion makes them an employee with the Employee role', async () => {

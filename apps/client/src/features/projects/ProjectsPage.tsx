@@ -16,6 +16,7 @@ import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form-c
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { BILLING, PROJECT_STATUSES, projectStatusLabel, type ClientRow, type Person, type ProjectDetail, type ProjectRow } from './types';
+import { PersonOptions } from '@/components/common/PersonOptions';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'secondary' | 'default' | 'destructive'> = {
   active: 'success',
@@ -225,11 +226,7 @@ export function ProjectDialog({ open, project, onClose, onSaved }: { open: boole
           <Field label="Project manager">
             <Select value={f.manager} onChange={set('manager')} disabled={!wide}>
               <option value="">Select…</option>
-              {people.data?.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name} ({p.code})
-                </option>
-              ))}
+              <PersonOptions people={people.data ?? []} />
             </Select>
           </Field>
           <Field label="Status">
@@ -270,12 +267,22 @@ export function ProjectDialog({ open, project, onClose, onSaved }: { open: boole
             <Input className="w-48" placeholder="Find a person" value={find} onChange={(e) => setFind(e.target.value)} aria-label="Find a person" />
           </div>
           <div className="max-h-48 overflow-y-auto rounded-md border p-2">
-            {shown.map((p) => (
-              <label key={p._id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
-                <Checkbox checked={f.members.includes(p._id) || p._id === f.manager} disabled={p._id === f.manager} onChange={() => toggle(p._id)} />
-                {p.name} <span className="text-xs text-muted-foreground">{p.code}{p.department ? ` · ${p.department}` : ''}{p._id === f.manager ? ' · manager' : ''}</span>
-              </label>
-            ))}
+            {[
+              { title: 'Employees', list: shown.filter((p) => p.type !== 'intern') },
+              { title: 'Interns', list: shown.filter((p) => p.type === 'intern') },
+            ]
+              .filter((g) => g.list.length)
+              .map((g, _k, groups) => (
+                <div key={g.title}>
+                  {groups.length > 1 && <div className="px-1 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.title}</div>}
+                  {g.list.map((p) => (
+                    <label key={p._id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
+                      <Checkbox checked={f.members.includes(p._id) || p._id === f.manager} disabled={p._id === f.manager} onChange={() => toggle(p._id)} />
+                      {p.name} <span className="text-xs text-muted-foreground">{p.code}{p.department ? ` · ${p.department}` : ''}{p._id === f.manager ? ' · manager' : ''}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
             {!shown.length && <p className="p-2 text-sm text-muted-foreground">No one found</p>}
           </div>
         </div>

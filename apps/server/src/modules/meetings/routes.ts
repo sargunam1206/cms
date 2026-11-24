@@ -21,7 +21,7 @@ export const meetingsRouter = Router();
 const P = PERMISSIONS;
 const self = requirePermission(P.MEETINGS_SELF, P.MEETINGS_MANAGE);
 const idParam = validate(z.object({ id: objectId }), 'params');
-const PERSON = 'name code department designation';
+const PERSON = 'name code department designation type';
 const same = (a: unknown, b: unknown) => a != null && b != null && String(a) === String(b);
 const managesAll = (req: Request) => hasPermission(req, P.MEETINGS_MANAGE);
 const idOf = (v: any) => String(v?._id ?? v);

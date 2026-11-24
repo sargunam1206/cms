@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useGet, useSend } from '@/api/hooks';
 import { PageHeader, Spinner } from '@/components/common/page';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function IdeaPage() {
       setReplyTo(null);
     },
   });
-  const del = useSend<void>('delete', `/ideas/${id}`, { invalidate: [['ideas']], success: 'Idea removed', onSuccess: () => nav('/ideas') });
+  const del = useSend<void>('delete', `/ideas/${id}`, { invalidate: [['ideas']], success: 'Idea removed', onSuccess: () => nav('/ideas', { replace: true }) });
 
   if (isError)
     return (
@@ -57,9 +57,6 @@ export function IdeaPage() {
 
   return (
     <>
-      <Link to="/ideas" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> All ideas
-      </Link>
       <PageHeader
         title={i.title}
         description={`${i.author?.name} · ${dayjs(i.createdAt).format('DD MMM YYYY')}`}
