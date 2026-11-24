@@ -124,10 +124,11 @@ function Overview({ i }: { i: InternDetail }) {
             {dayjs(i.startDate).format('DD MMM YYYY')} – {dayjs(i.endDate).format('DD MMM YYYY')} ({days} days{['active', 'onboarding'].includes(i.status) && left >= 0 ? `, ${left} left` : ''})
           </Row>
           <Row label="Mentor">{i.mentor ? `${i.mentor.name}${i.mentor.designation ? ` · ${i.mentor.designation}` : ''}` : '—'}</Row>
+          <Row label="Intern type">{i.employee.workType === 'part_time' ? 'Part time (flexible hours, several sessions a day)' : 'Full time (office shift)'}</Row>
           <Row label="Intern from">{INTERN_SOURCE_LABEL[i.source]}</Row>
           <Row label={ORG_LABEL[i.source]}>{i.organization}</Row>
           {i.source === 'college' && <Row label="Course">{[i.course, i.yearOfStudy].filter(Boolean).join(' · ') || '—'}</Row>}
-          <Row label="Works on">{i.payBasis === 'hourly' ? `Hourly basis${i.hoursPerWeek ? ` · about ${i.hoursPerWeek} hours a week` : ''}` : 'Monthly basis'}</Row>
+          <Row label="Pay basis">{i.payBasis === 'hourly' ? `Hourly rate${i.hoursPerWeek ? ` · about ${i.hoursPerWeek} hours a week` : ''}` : 'Monthly stipend'}</Row>
           <Row label="Department">{i.employee.department || '—'}</Row>
           {i.stipend != null && <Row label="Stipend">{i.stipend ? `${inr(i.stipend)} per ${i.payBasis === 'hourly' ? 'hour' : 'month'}` : 'Unpaid'}</Row>}
           <Row label="Contact">{[i.employee.email, i.employee.phone].filter(Boolean).join(' · ') || '—'}</Row>

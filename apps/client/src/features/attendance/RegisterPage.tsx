@@ -144,12 +144,15 @@ export function RegisterPage() {
                           <Link to={`/attendance/employee/${r.employee._id}?month=${month}`} className="font-medium hover:underline">
                             {r.employee.name}
                           </Link>
-                          <div className="text-muted-foreground">{r.employee.code}</div>
+                          <div className="text-muted-foreground">
+                            {r.employee.code}
+                            {r.employee.workType === 'part_time' && <span className="ml-1 rounded bg-violet-100 px-1 text-[10px] font-medium text-violet-800">part time</span>}
+                          </div>
                         </div>
                       </div>
                     </td>
                     {r.days.map((d) => {
-                      const c = dayCell(d);
+                      const c = dayCell(d, r.employee.workType === 'part_time');
                       const editable = can(P.ATTENDANCE_OVERRIDE) && !data.locked && d.type === 'working' && d.date <= today && r.employee._id !== myEmployeeId;
                       return (
                         <td

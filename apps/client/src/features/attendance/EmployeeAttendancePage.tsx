@@ -50,11 +50,12 @@ export function EmployeeAttendancePage() {
         <Spinner />
       ) : (
         <div className="space-y-4">
-          <SummaryStats s={data.summary} />
+          <SummaryStats s={data.summary} partTime={data.employee.workType === 'part_time'} />
           <Card>
             <CardContent className="pt-5">
               <MonthCalendar
                 days={data.days}
+                partTime={data.employee.workType === 'part_time'}
                 onPick={(d) => {
                   const ok = can(P.ATTENDANCE_OVERRIDE) && !data.locked && d.type === 'working' && d.date <= dayjs().format('YYYY-MM-DD') && data.employee._id !== user?.employee?._id;
                   if (ok) setOverride({ employee: data.employee, date: d.date });

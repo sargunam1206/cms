@@ -12,6 +12,11 @@ export const INTERN_SOURCES = ['college', 'company', 'other'] as const;
 export type InternSource = (typeof INTERN_SOURCES)[number];
 export const INTERN_SOURCE_LABEL: Record<InternSource, string> = { college: 'College', company: 'Company', other: 'Other' };
 
+/** Full time follows the office shift; part time comes in for a few hours when agreed (several sessions a day allowed). */
+export const WORK_TYPES = ['full_time', 'part_time'] as const;
+export type WorkType = (typeof WORK_TYPES)[number];
+export const WORK_TYPE_LABEL: Record<WorkType, string> = { full_time: 'Full time', part_time: 'Part time' };
+
 /** How the stipend is worked out: a fixed monthly amount, or an hourly rate times the hours worked. */
 export const INTERN_PAY_BASIS = ['monthly', 'hourly'] as const;
 export type InternPayBasis = (typeof INTERN_PAY_BASIS)[number];
@@ -36,6 +41,7 @@ const internFields = {
   phone: optText(20),
   department: optText(80),
   designation: optText(80),
+  workType: z.enum(WORK_TYPES).default('full_time'),
   source: z.enum(INTERN_SOURCES).default('college'),
   /** The college, company or other organisation the intern comes from. */
   organization: z.string().trim().min(2, 'College / company name is required').max(150),

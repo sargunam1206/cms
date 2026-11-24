@@ -48,7 +48,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const raw = express.raw({ type: () => true, limit: MAX_BYTES });
 const idParam = validate(z.object({ id: objectId }), 'params');
 const taskParam = validate(z.object({ taskId: objectId }), 'params');
-const PERSON = 'name code email phone department designation status type';
+const PERSON = 'name code email phone department designation status type workType';
 const same = (a: unknown, b: unknown) => a != null && b != null && String((a as any)?._id ?? a) === String((b as any)?._id ?? b);
 
 const manages = (req: Request) => hasPermission(req, P.INTERNS_MANAGE);
@@ -275,6 +275,7 @@ internsRouter.post(
       manager: b.mentor || null, // the mentor approves their leave and attendance corrections
       dateOfJoining: b.startDate,
       type: 'intern',
+      workType: b.workType,
       pfApplicable: false,
       esiApplicable: false,
     });
@@ -343,7 +344,7 @@ internsRouter.put(
     const b = req.body as z.infer<typeof internUpdateSchema>;
     await Employee.updateOne(
       { _id: req.params.id },
-      { $set: { name: b.name, email: b.email || null, phone: b.phone || null, department: b.department || null, designation: b.designation || 'Intern', manager: b.mentor || null } },
+      { $set: { name: b.name, email: b.email || null, phone: b.phone || null, department: b.department || null, designation: b.designation || 'Intern', manager: b.mentor || null, workType: b.workType } },
     );
     i.set({
       source: b.source,
@@ -401,7 +402,7 @@ internsRouter.post(
     if (!manages(req)) throw forbidden('Only HR or Management can convert an intern');
     const i = await internshipOf(req, req.params.id);
     if (i.status === 'converted') throw conflict('Already converted');
-    const set: Record<string, unknown> = { type: 'employee', status: 'active', exitDate: null, dateOfJoining: req.body.dateOfJoining };
+    const set: Record<string, unknown> = { type: 'employee', workType: 'full_time', status: 'active', exitDate: null, dateOfJoining: req.body.dateOfJoining };
     if (req.body.designation) set.designation = req.body.designation;
     if (req.body.code) {
       const code = req.body.code.toUpperCase();

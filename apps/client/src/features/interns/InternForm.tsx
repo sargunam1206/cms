@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { INTERN_SOURCE_LABEL, INTERN_SOURCES, type InternPayBasis, type InternSource } from '@cms/shared';
+import { INTERN_SOURCE_LABEL, INTERN_SOURCES, type InternPayBasis, type InternSource, type WorkType } from '@cms/shared';
 import { useGet, useSend } from '@/api/hooks';
 import { Spinner } from '@/components/common/page';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const BLANK = {
   phone: '',
   department: '',
   designation: 'Intern',
+  workType: 'full_time' as WorkType,
   source: 'college' as InternSource,
   organization: '',
   course: '',
@@ -41,6 +42,7 @@ const fromDetail = (i: InternDetail): Form => ({
   phone: i.employee.phone ?? '',
   department: i.employee.department ?? '',
   designation: i.employee.designation ?? 'Intern',
+  workType: i.employee.workType ?? 'full_time',
   source: i.source,
   organization: i.organization,
   course: i.course ?? '',
@@ -125,6 +127,19 @@ export function InternFormDialog({ open, editId, onClose }: { open: boolean; edi
                 <Input value={f.phone} onChange={set('phone')} />
               </Field>
 
+              <Field label="Intern type">
+                <Select
+                  value={f.workType}
+                  onChange={(e) => {
+                    const workType = e.target.value as WorkType;
+                    // part-timers are usually paid by the hour; still changeable below
+                    setF({ ...f, workType, payBasis: workType === 'part_time' ? 'hourly' : f.payBasis });
+                  }}
+                >
+                  <option value="full_time">Full time: regular office hours</option>
+                  <option value="part_time">Part time: flexible hours</option>
+                </Select>
+              </Field>
               <Field label="Intern from">
                 <Select value={f.source} onChange={set('source')}>
                   {INTERN_SOURCES.map((s) => (
@@ -171,10 +186,10 @@ export function InternFormDialog({ open, editId, onClose }: { open: boolean; edi
                   ))}
                 </Select>
               </Field>
-              <Field label="Works on">
+              <Field label="Pay basis">
                 <Select value={f.payBasis} onChange={set('payBasis')}>
-                  <option value="monthly">Monthly basis</option>
-                  <option value="hourly">Hourly basis</option>
+                  <option value="monthly">Monthly stipend</option>
+                  <option value="hourly">Hourly rate</option>
                 </Select>
               </Field>
               <Field label={hourly ? 'Rate per hour (₹, 0 if unpaid)' : 'Monthly stipend (₹, 0 if unpaid)'}>
@@ -192,9 +207,10 @@ export function InternFormDialog({ open, editId, onClose }: { open: boolean; edi
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {hourly
-                ? 'Hourly interns check in and out as usual; the Stipend tab totals their hours for the month and works out the amount at this rate.'
-                : 'The intern gets an Intern login: attendance, leave, timesheet, meetings, ideas and their work board. No payslips; stipend is tracked on their page.'}
+              {f.workType === 'part_time'
+                ? 'Part time: no fixed shift. They check in when they start and out when they stop, as many times a day as needed (e.g. 1 hour one day, 3 hours another). Every session is recorded, and they are never marked late, half-day or absent.'
+                : 'Full time: regular attendance against the office shift, like employees.'}{' '}
+              {hourly ? 'The Stipend tab totals the hours worked in the month and works out the amount at this rate.' : 'No payslips; stipend is tracked on their page.'}
             </p>
           </>
         )}

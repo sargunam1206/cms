@@ -47,16 +47,35 @@ export async function unlockMonth(month: string, actor: Id, reason: string) {
 
 // ---------- Recompute ----------
 
-/** Re-derives a day's metrics from its punches + leave. Mutates and returns the doc. */
-export function applyEvaluation<T extends Partial<AttendanceDayDoc>>(day: T, cal: WorkCalendarSettings): T {
-  const ev = evaluateDay(day.date!, day.checkIn, day.checkOut, cal);
-  Object.assign(day, {
-    workedMinutes: ev.workedMinutes,
-    lateMinutes: ev.lateMinutes,
-    earlyMinutes: ev.earlyMinutes,
-    isLate: ev.isLate,
-    status: ev.status,
-  });
+type Session = { in: Date; out?: Date | null };
+const sessionMinutes = (ss: Session[]) => ss.reduce((m, x) => m + (x.out ? Math.max(0, Math.round((x.out.getTime() - x.in.getTime()) / 60000)) : 0), 0);
+
+/**
+ * Re-derives a day's metrics from its punches + leave. Mutates and returns the doc.
+ * Part-time staff (a day with sessions, or partTime passed in) have no shift: their hours are the sum of their
+ * sessions and any punch makes the day present; they are never late, early or half-day.
+ */
+export function applyEvaluation<T extends Partial<AttendanceDayDoc>>(day: T, cal: WorkCalendarSettings, partTime = !!(day as { sessions?: unknown[] }).sessions?.length): T {
+  if (partTime) {
+    const d = day as T & { sessions?: Session[]; set?: (k: string, v: unknown) => void };
+    let ss: Session[] = (d.sessions ?? []).map((x) => ({ in: x.in, out: x.out ?? null }));
+    if (!ss.length && day.checkIn) ss = [{ in: day.checkIn, out: day.checkOut ?? null }];
+    // a corrected check-out (regularization / HR) closes the session left open
+    const last = ss[ss.length - 1];
+    if (last && !last.out && day.checkOut && day.checkOut > last.in) last.out = day.checkOut;
+    if (d.set) d.set('sessions', ss);
+    else d.sessions = ss as never;
+    Object.assign(day, { workedMinutes: sessionMinutes(ss), lateMinutes: 0, earlyMinutes: 0, isLate: false, status: day.checkIn ? 'present' : 'absent' });
+  } else {
+    const ev = evaluateDay(day.date!, day.checkIn, day.checkOut, cal);
+    Object.assign(day, {
+      workedMinutes: ev.workedMinutes,
+      lateMinutes: ev.lateMinutes,
+      earlyMinutes: ev.earlyMinutes,
+      isLate: ev.isLate,
+      status: ev.status,
+    });
+  }
   if (day.leave && day.leave.fraction === 1) {
     Object.assign(day, { status: 'leave', isLate: false, lateMinutes: 0 });
   } else if (day.leave && !day.checkIn) {
@@ -74,17 +93,55 @@ const pinnedStatus = (day: { override?: unknown; status?: AttendanceDayDoc['stat
 
 // ---------- Self check-in / out (server time only) ----------
 
+export async function isPartTime(employeeId: Id | string) {
+  return (await Employee.findById(employeeId).select('workType').lean())?.workType === 'part_time';
+}
+
 export async function getToday(employeeId: Id) {
   const date = todayStr();
-  const [day, cal, holidays] = await Promise.all([
+  const [day, cal, holidays, partTime] = await Promise.all([
     AttendanceDay.findOne({ employee: employeeId, date }).lean(),
     getWorkCalendar(date),
     holidaySet(date, date),
+    isPartTime(employeeId),
   ]);
-  return { serverTime: now(), date, dayType: dayType(date, cal, holidays), shift: { start: cal.shiftStart, end: cal.shiftEnd }, record: day };
+  return { serverTime: now(), date, dayType: dayType(date, cal, holidays), shift: { start: cal.shiftStart, end: cal.shiftEnd }, partTime, record: day };
+}
+
+/** Part-time punches: each check-in opens a session and each check-out closes it; several sessions a day are fine. */
+async function partTimePunch(employeeId: Id, actor: Id, kind: 'in' | 'out') {
+  const at = now();
+  const date = toDateStr(at);
+  await assertMonthUnlocked(date);
+  const cal = await getWorkCalendar(date);
+  const existing = await AttendanceDay.findOne({ employee: employeeId, date });
+  if (existing?.leave?.fraction === 1) throw conflict('You are on full-day leave today');
+  const day = existing ?? new AttendanceDay({ employee: employeeId, date, source: 'self' });
+  const ss: Session[] = (day.sessions ?? []).map((x) => ({ in: x.in, out: x.out ?? null }));
+  if (!ss.length && day.checkIn) ss.push({ in: day.checkIn, out: day.checkOut ?? null });
+  const open = ss.find((x) => !x.out);
+  if (kind === 'in') {
+    if (open) throw conflict('Already checked in. Check out first.');
+    ss.push({ in: at, out: null });
+    day.checkIn = day.checkIn ?? at;
+    day.checkOut = null; // open until this session is closed
+  } else {
+    if (!open) throw badRequest('Check in first');
+    open.out = at;
+    day.checkOut = at;
+    day.missedCheckout = false;
+  }
+  day.set('sessions', ss);
+  const pinned = pinnedStatus(day);
+  applyEvaluation(day, cal, true);
+  if (pinned) day.status = pinned;
+  await day.save();
+  await audit({ actor, action: kind === 'in' ? 'attendance.check_in' : 'attendance.check_out', entity: 'AttendanceDay', entityId: day._id, after: { date, at, session: ss.length } });
+  return day;
 }
 
 export async function checkIn(employeeId: Id, actor: Id) {
+  if (await isPartTime(employeeId)) return partTimePunch(employeeId, actor, 'in');
   const at = now();
   const date = toDateStr(at);
   await assertMonthUnlocked(date);
@@ -105,6 +162,7 @@ export async function checkIn(employeeId: Id, actor: Id) {
 }
 
 export async function checkOut(employeeId: Id, actor: Id) {
+  if (await isPartTime(employeeId)) return partTimePunch(employeeId, actor, 'out');
   const at = now();
   const date = toDateStr(at);
   await assertMonthUnlocked(date);
@@ -153,6 +211,7 @@ function buildDays(
       isLate: r?.isLate,
       lateExcused: !!r?.lateExcused,
       open: !!r?.checkIn && !r?.checkOut && !r?.missedCheckout,
+      workedMinutes: r?.workedMinutes ?? 0,
       leave: r?.leave?.fraction ? { paid: !!r.leave.paid, fraction: r.leave.fraction, code: r.leave.code } : null,
       record: r ?? null,
     };
@@ -160,7 +219,7 @@ function buildDays(
 }
 
 export async function employeeMonth(employeeId: Id | string, month: string) {
-  const emp = await Employee.findById(employeeId).select('name code dateOfJoining exitDate').lean();
+  const emp = await Employee.findById(employeeId).select('name code dateOfJoining exitDate workType').lean();
   if (!emp) throw notFound('Employee');
   const { dates, cal, holidays } = await monthContext(month);
   const rows = await AttendanceDay.find({ employee: employeeId, date: { $gte: dates[0], $lte: dates[dates.length - 1] } }).lean();
@@ -171,7 +230,7 @@ export async function employeeMonth(employeeId: Id | string, month: string) {
     month,
     locked: await isMonthLocked(month),
     days,
-    summary: summarizeMonth(days, cal, todayStr()),
+    summary: summarizeMonth(days, cal, todayStr(), emp.workType === 'part_time'),
   };
 }
 
@@ -208,7 +267,7 @@ export async function monthRegister(month: string, employeeFilter: Record<string
   };
   const [employees, total] = await Promise.all([
     Employee.find(filter)
-      .select('name code department dateOfJoining exitDate')
+      .select('name code department dateOfJoining exitDate workType')
       .sort({ code: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -234,9 +293,9 @@ export async function monthRegister(month: string, employeeFilter: Record<string
     rows: employees.map((e) => {
       const days = buildDays(dates, byEmp.get(String(e._id)) ?? new Map(), e, cal, holidays);
       return {
-        employee: { _id: e._id, name: e.name, code: e.code, department: e.department },
+        employee: { _id: e._id, name: e.name, code: e.code, department: e.department, workType: e.workType },
         days: days.map(({ record: _r, ...d }) => d),
-        summary: summarizeMonth(days, cal, today),
+        summary: summarizeMonth(days, cal, today, e.workType === 'part_time'),
       };
     }),
   };
@@ -298,7 +357,7 @@ export async function decideRegularization(id: string, decision: 'approved' | 'r
     day.source = 'regularized';
     day.missedCheckout = false;
     day.regularization = reg._id;
-    applyEvaluation(day, cal);
+    applyEvaluation(day, cal, await isPartTime(reg.employee));
     await day.save();
   }
 
@@ -524,11 +583,23 @@ export async function bulkOverride(input: AttendanceBulkOverrideInput, actor: { 
 
 // ---------- Nightly job ----------
 
-/** Past days with a check-in but no check-out become missed-checkout absences (fix via regularization). */
+/**
+ * Past days with a check-in but no check-out become missed-checkout absences (fix via regularization).
+ * Part-time days keep the sessions they did close; only the one left open is flagged.
+ */
 export async function finalizeMissedCheckouts(beforeDate = todayStr()) {
   const res = await AttendanceDay.updateMany(
-    { date: { $lt: beforeDate }, checkIn: { $ne: null }, checkOut: null, missedCheckout: false, 'leave.fraction': { $ne: 1 }, override: null },
+    { date: { $lt: beforeDate }, checkIn: { $ne: null }, checkOut: null, missedCheckout: false, 'leave.fraction': { $ne: 1 }, override: null, 'sessions.0': { $exists: false } },
     { $set: { missedCheckout: true, status: 'absent', workedMinutes: 0 } },
   );
-  return res.modifiedCount;
+  const open = await AttendanceDay.find({ date: { $lt: beforeDate }, checkOut: null, missedCheckout: false, 'sessions.0': { $exists: true } });
+  for (const day of open) {
+    const closed = (day.sessions ?? []).filter((x) => x.out);
+    day.missedCheckout = true;
+    day.checkOut = closed.length ? closed[closed.length - 1].out : null;
+    day.workedMinutes = sessionMinutes(closed.map((x) => ({ in: x.in, out: x.out })));
+    if (!day.override) day.status = closed.length ? 'present' : 'absent';
+    await day.save();
+  }
+  return res.modifiedCount + open.length;
 }

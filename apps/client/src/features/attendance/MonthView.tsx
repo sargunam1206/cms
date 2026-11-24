@@ -4,7 +4,7 @@ import { cn, fmtMinutes, fmtTime } from '@/lib/utils';
 import { Stat } from '@/components/common/page';
 
 /** Short code + colour for one day, shared by the calendar and the register grid. */
-export function dayCell(d: MonthDay): { code: string; cls: string; title: string } {
+export function dayCell(d: MonthDay, partTime = false): { code: string; cls: string; title: string } {
   if (d.type === 'inactive') return { code: '', cls: 'bg-muted/30', title: 'Not employed' };
   if (d.type === 'holiday') return { code: 'H', cls: 'bg-violet-100 text-violet-800', title: 'Holiday' };
   if (d.type === 'weekoff') return { code: 'W', cls: 'bg-slate-100 text-slate-500', title: 'Week off' };
@@ -14,11 +14,22 @@ export function dayCell(d: MonthDay): { code: string; cls: string; title: string
   if (d.leave?.fraction === 0.5) return { code: `½${d.leave.code ?? 'L'}`, cls: 'bg-sky-50 text-sky-800', title: 'Half-day leave' };
   if (d.status === 'present') return { code: 'P', cls: cn('bg-emerald-100 text-emerald-800', d.isLate && (d.lateExcused ? 'ring-1 ring-inset ring-slate-300' : 'ring-1 ring-inset ring-amber-400')), title: d.isLate ? (d.lateExcused ? 'Present (late, excused)' : 'Present (late)') : 'Present' };
   if (d.status === 'half') return { code: '½', cls: 'bg-amber-100 text-amber-800', title: 'Half day' };
+  // part time has no fixed days: a day without work is just blank, never absent
+  if (partTime) return { code: '', cls: '', title: 'Not in' };
   if (d.date > dayjs().format('YYYY-MM-DD') || (d.date === dayjs().format('YYYY-MM-DD') && !d.status)) return { code: '', cls: '', title: '' };
   return { code: 'A', cls: 'bg-red-100 text-red-800', title: 'Absent' };
 }
 
-export function SummaryStats({ s }: { s: AttendanceSummary }) {
+export function SummaryStats({ s, partTime = false }: { s: AttendanceSummary; partTime?: boolean }) {
+  if (partTime)
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Days worked" value={s.presentDays} tone="good" />
+        <Stat label="Hours worked" value={fmtMinutes(s.workedMinutes ?? 0) || '0h'} />
+        <Stat label="Paid leave" value={s.paidLeaveDays} />
+        <Stat label="Work type" value="Part time" />
+      </div>
+    );
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
       <Stat label="Working days" value={s.workingDays} />
@@ -37,7 +48,7 @@ export function SummaryStats({ s }: { s: AttendanceSummary }) {
   );
 }
 
-export function MonthCalendar({ days, onPick }: { days: MonthDay[]; onPick?: (d: MonthDay) => void }) {
+export function MonthCalendar({ days, onPick, partTime = false }: { days: MonthDay[]; onPick?: (d: MonthDay) => void; partTime?: boolean }) {
   if (!days.length) return null;
   const lead = dayjs(days[0].date).day(); // 0 = Sunday
   return (
@@ -54,7 +65,8 @@ export function MonthCalendar({ days, onPick }: { days: MonthDay[]; onPick?: (d:
           <div key={`pad${i}`} />
         ))}
         {days.map((d) => {
-          const c = dayCell(d);
+          const c = dayCell(d, partTime);
+          const sessions = d.record?.sessions ?? [];
           return (
             <button
               key={d.date}
@@ -67,12 +79,24 @@ export function MonthCalendar({ days, onPick }: { days: MonthDay[]; onPick?: (d:
                 <span className="font-medium">{dayjs(d.date).date()}</span>
                 <span className="font-semibold">{c.code}</span>
               </div>
-              {d.record?.checkIn && (
-                <div className="mt-auto leading-tight opacity-80">
-                  {fmtTime(d.record.checkIn)}
-                  {d.record.checkOut && <> – {fmtTime(d.record.checkOut)}</>}
-                  {d.record.workedMinutes > 0 && <div>{fmtMinutes(d.record.workedMinutes)}</div>}
+              {sessions.length > 0 ? (
+                <div className="mt-auto leading-tight opacity-80" title={sessions.map((x) => `${fmtTime(x.in)} – ${x.out ? fmtTime(x.out) : '…'}`).join('\n')}>
+                  {sessions.slice(0, 3).map((x, k) => (
+                    <div key={k}>
+                      {fmtTime(x.in)} – {x.out ? fmtTime(x.out) : '…'}
+                    </div>
+                  ))}
+                  {sessions.length > 3 && <div>+{sessions.length - 3} more</div>}
+                  {d.record!.workedMinutes > 0 && <div className="font-semibold">{fmtMinutes(d.record!.workedMinutes)}</div>}
                 </div>
+              ) : (
+                d.record?.checkIn && (
+                  <div className="mt-auto leading-tight opacity-80">
+                    {fmtTime(d.record.checkIn)}
+                    {d.record.checkOut && <> – {fmtTime(d.record.checkOut)}</>}
+                    {d.record.workedMinutes > 0 && <div>{fmtMinutes(d.record.workedMinutes)}</div>}
+                  </div>
+                )
               )}
             </button>
           );

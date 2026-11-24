@@ -68,6 +68,7 @@ export interface SummaryDay {
   lateExcused?: boolean;
   /** Checked in but not yet checked out. */
   open?: boolean;
+  workedMinutes?: number;
   leave?: { paid: boolean; fraction: number } | null;
 }
 
@@ -89,13 +90,15 @@ export interface AttendanceSummary {
   paidDays: number;
   /** Working days not yet elapsed (current month); not counted as LOP. Payroll requires 0. */
   pendingDays: number;
+  /** Total time worked in the month, from check-in to check-out (all sessions for part-time staff). */
+  workedMinutes: number;
 }
 
 /**
  * Month summary consumed by payroll. Proration is paidDays / totalDays (calendar days),
  * so week-offs and holidays are paid, and only LOP reduces salary.
  */
-export function summarizeMonth(days: SummaryDay[], cal: WorkCalendarSettings, today: string): AttendanceSummary {
+export function summarizeMonth(days: SummaryDay[], cal: WorkCalendarSettings, today: string, partTime = false): AttendanceSummary {
   const s: AttendanceSummary = {
     totalDays: days.length,
     workingDays: 0,
@@ -112,9 +115,11 @@ export function summarizeMonth(days: SummaryDay[], cal: WorkCalendarSettings, to
     lopDays: 0,
     paidDays: 0,
     pendingDays: 0,
+    workedMinutes: 0,
   };
 
   for (const d of days) {
+    s.workedMinutes += d.workedMinutes ?? 0;
     if (d.type === 'inactive') {
       s.inactiveDays++;
       continue;
@@ -140,6 +145,9 @@ export function summarizeMonth(days: SummaryDay[], cal: WorkCalendarSettings, to
     }
     const remaining = 1 - leaveFraction;
     if (remaining <= 0) continue;
+
+    // Part-time staff have no fixed days: a day they did not come is neither present nor absent
+    if (partTime && (!d.status || d.status === 'absent' || d.date > today)) continue;
 
     // Future days, and today while not yet checked out, are neither present nor absent yet
     if (d.date > today || (d.date === today && (!d.status || d.open))) {

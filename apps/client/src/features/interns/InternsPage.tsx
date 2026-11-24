@@ -90,6 +90,7 @@ export function InternsPage() {
                         <div className="text-xs text-muted-foreground">
                           {i.employee.code}
                           {i.employee.email ? ` · ${i.employee.email}` : ''}
+                          {i.employee.workType === 'part_time' && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">Part time</span>}
                         </div>
                       </TD>
                       <TD className="text-sm">
@@ -152,6 +153,7 @@ export function InternsPage() {
                 </div>
                 <CardLine label={INTERN_SOURCE_LABEL[i.source]}>{i.organization}</CardLine>
                 {i.course && <CardLine label="Course">{i.course}</CardLine>}
+                <CardLine label="Type">{i.employee.workType === 'part_time' ? 'Part time' : 'Full time'}</CardLine>
                 <CardLine label="Period">{dayjs(i.startDate).format('DD MMM YY')} – {dayjs(i.endDate).format('DD MMM YY')}</CardLine>
                 <CardLine label="Mentor">{i.mentor?.name ?? '—'}</CardLine>
                 <CardLine label="Onboarding">{i.onboarding.done}/{i.onboarding.total}</CardLine>

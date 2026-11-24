@@ -43,10 +43,10 @@ export function MyAttendancePage() {
               <Lock className="h-3 w-3" /> This month is locked for payroll
             </Badge>
           )}
-          <SummaryStats s={data.summary} />
+          <SummaryStats s={data.summary} partTime={data.employee.workType === 'part_time'} />
           <Card>
             <CardContent className="pt-5">
-              <MonthCalendar days={data.days} onPick={(d) => !data.locked && d.date <= today && d.type !== 'inactive' && setReg({ date: d.date })} />
+              <MonthCalendar days={data.days} partTime={data.employee.workType === 'part_time'} onPick={(d) => !data.locked && d.date <= today && d.type !== 'inactive' && setReg({ date: d.date })} />
             </CardContent>
           </Card>
         </div>

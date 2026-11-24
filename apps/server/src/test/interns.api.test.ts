@@ -6,6 +6,8 @@ import { AttendanceDay } from '../modules/attendance/model';
 import { Notification } from '../modules/notifications/model';
 import { Project } from '../modules/projects/model';
 import { User } from '../modules/users/model';
+import { resetClock, setClock, zonedDateTime } from '../utils/time';
+import { finalizeMissedCheckouts } from '../modules/attendance/service';
 import { app, connectTestDb, createPerson, dropTestDb, seedRoles } from './helpers';
 
 let roles: Awaited<ReturnType<typeof seedRoles>>;
@@ -155,6 +157,66 @@ describe('interns', () => {
 
     const list = (await request(app).get('/api/interns').query({ q: 'ABC Info' }).set(hr.auth).expect(200)).body;
     expect(list.items.map((x: any) => x.organization)).toEqual(['ABC Infotech']);
+  });
+
+  it('a part-time intern checks in and out several times a day; hours add up; never late, half-day or absent', async () => {
+    const hr = await createPerson(roles.HR);
+    const code = `INT-P-${++n}`;
+    const email = `${code.toLowerCase()}@company.test`;
+    const r = await request(app)
+      .post('/api/interns')
+      .set(hr.auth)
+      .send({ code, name: 'Part Timer', email, workType: 'part_time', organization: 'Loyola College', startDate: '2026-09-01', endDate: '2026-12-31', payBasis: 'hourly', stipend: 200, password: 'Intern@123' })
+      .expect(201);
+    const auth = { Authorization: `Bearer ${(await request(app).post('/api/auth/login').send({ email, password: 'Intern@123' })).body.accessToken}` };
+    expect((await Employee.findById(r.body._id).lean())!.workType).toBe('part_time');
+
+    try {
+      // Tue 1 Sep: 11:00-12:00 and 16:00-18:00 (3 h, late by full-time rules, but not for part time)
+      const at = (d: string, t: string) => setClock(() => zonedDateTime(d, t));
+      at('2026-09-01', '11:00');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(201);
+      at('2026-09-01', '11:30');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(409); // already in
+      at('2026-09-01', '12:00');
+      await request(app).post('/api/attendance/check-out').set(auth).expect(200);
+      at('2026-09-01', '16:00');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(201);
+      const open = (await request(app).get('/api/attendance/today').set(auth).expect(200)).body;
+      expect(open.partTime).toBe(true);
+      expect(open.record.sessions).toHaveLength(2);
+      at('2026-09-01', '18:00');
+      await request(app).post('/api/attendance/check-out').set(auth).expect(200);
+      // Thu 3 Sep: one hour
+      at('2026-09-03', '10:00');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(201);
+      at('2026-09-03', '11:00');
+      await request(app).post('/api/attendance/check-out').set(auth).expect(200);
+
+      const day1 = await AttendanceDay.findOne({ employee: r.body._id, date: '2026-09-01' }).lean();
+      expect(day1).toMatchObject({ workedMinutes: 180, status: 'present', isLate: false });
+      expect(day1!.sessions).toHaveLength(2);
+
+      at('2026-09-30', '20:00');
+      const month = (await request(app).get('/api/attendance/me').query({ month: '2026-09' }).set(auth).expect(200)).body;
+      expect(month.summary).toMatchObject({ presentDays: 2, absentDays: 0, lateCount: 0, workedMinutes: 240 });
+
+      const h = (await request(app).get(`/api/interns/${r.body._id}/hours`).query({ month: '2026-09' }).set(hr.auth).expect(200)).body;
+      expect(h).toMatchObject({ attendanceMinutes: 240, daysWorked: 2, suggestedAmount: 80000 }); // 4 h x Rs 200
+
+      // Fri 4 Sep: one closed session, then a second left open; the nightly job keeps the closed hour
+      at('2026-09-04', '09:00');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(201);
+      at('2026-09-04', '10:00');
+      await request(app).post('/api/attendance/check-out').set(auth).expect(200);
+      at('2026-09-04', '15:00');
+      await request(app).post('/api/attendance/check-in').set(auth).expect(201);
+      await finalizeMissedCheckouts('2026-09-05');
+      const day4 = await AttendanceDay.findOne({ employee: r.body._id, date: '2026-09-04' }).lean();
+      expect(day4).toMatchObject({ workedMinutes: 60, status: 'present', missedCheckout: true });
+    } finally {
+      resetClock();
+    }
   });
 
   it('HR deletes an intern with everything that belongs to them; a hired intern cannot be deleted', async () => {

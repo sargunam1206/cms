@@ -31,6 +31,9 @@ export function CheckInWidget() {
   const rec = today.data?.record;
   const serverNow = dayjs(Date.now() + offset);
   const onLeave = rec?.status === 'leave';
+  const partTime = !!today.data?.partTime;
+  const sessions = rec?.sessions ?? [];
+  const openSession = sessions.some((x) => !x.out);
 
   return (
     <Card className="relative h-full overflow-hidden pt-1 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:bg-gradient-to-r before:from-blue-600 before:via-indigo-500 before:to-emerald-500">
@@ -49,7 +52,7 @@ export function CheckInWidget() {
           <div className="text-4xl font-semibold tabular-nums tracking-tight text-blue-700">{serverNow.format('hh:mm:ss A')}</div>
           <div className="text-sm text-muted-foreground">
             {serverNow.format('dddd, DD MMM YYYY')}
-            {today.data && ` · Shift ${today.data.shift.start}–${today.data.shift.end}`}
+            {today.data && (today.data.partTime ? ' · Part time, flexible hours' : ` · Shift ${today.data.shift.start}–${today.data.shift.end}`)}
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/60 p-3 text-sm">
@@ -67,8 +70,30 @@ export function CheckInWidget() {
           </div>
         </div>
         {rec?.isLate && <Badge variant="warning">Late by {fmtLate(rec.lateMinutes)}</Badge>}
+        {partTime && sessions.length > 0 && (
+          <ul className="space-y-1 text-sm">
+            {sessions.map((x, k) => (
+              <li key={k} className="flex items-center justify-between rounded-md border px-3 py-1.5">
+                <span className="text-muted-foreground">Session {k + 1}</span>
+                <span className="font-medium">
+                  {fmtTime(x.in)} – {x.out ? fmtTime(x.out) : <span className="text-emerald-700">now</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {onLeave ? (
           <p className="text-sm text-muted-foreground">You are on leave today.</p>
+        ) : partTime ? (
+          openSession ? (
+            <Button className="w-full bg-orange-500 font-semibold text-white hover:bg-orange-600" onClick={() => checkOut.mutate(undefined)} disabled={checkOut.isPending}>
+              <LogOut /> Check out
+            </Button>
+          ) : (
+            <Button className="w-full bg-emerald-500 font-semibold text-white hover:bg-emerald-600" onClick={() => checkIn.mutate(undefined)} disabled={checkIn.isPending || today.isLoading}>
+              <LogIn /> {sessions.length ? 'Check in again' : 'Check in'}
+            </Button>
+          )
         ) : !rec?.checkIn ? (
           <Button className="w-full bg-emerald-500 font-semibold text-white hover:bg-emerald-600" onClick={() => checkIn.mutate(undefined)} disabled={checkIn.isPending || today.isLoading}>
             <LogIn /> Check in

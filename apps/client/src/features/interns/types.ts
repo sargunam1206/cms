@@ -10,7 +10,7 @@ export interface PersonRef {
 
 export interface InternRow {
   _id: string; // the intern's employee id
-  employee: PersonRef & { email?: string; phone?: string; status: string };
+  employee: PersonRef & { email?: string; phone?: string; status: string; workType?: 'full_time' | 'part_time' };
   source: InternSource;
   organization: string;
   course?: string;
@@ -29,7 +29,7 @@ export type InternStatus = 'onboarding' | 'active' | 'completed' | 'dropped' | '
 
 export interface InternDetail {
   _id: string;
-  employee: PersonRef & { email?: string; phone?: string; status: string; type: string };
+  employee: PersonRef & { email?: string; phone?: string; status: string; type: string; workType?: 'full_time' | 'part_time' };
   source: InternSource;
   organization: string;
   course?: string;

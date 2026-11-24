@@ -14,6 +14,8 @@ export interface EmployeeRef {
   code: string;
   /** 'intern' for interns */
   type?: string;
+  /** 'part_time': no fixed shift, several check-in sessions a day */
+  workType?: 'full_time' | 'part_time';
 }
 
 export interface Employee extends EmployeeRef {
@@ -59,6 +61,8 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   source: string;
   missedCheckout: boolean;
+  /** part-time staff: every check-in / check-out of the day */
+  sessions?: { in: string; out?: string | null }[];
 }
 
 export interface MonthDay {
@@ -88,6 +92,7 @@ export interface AttendanceSummary {
   lopDays: number;
   paidDays: number;
   pendingDays: number;
+  workedMinutes?: number;
 }
 
 export interface EmployeeMonth {
@@ -123,6 +128,7 @@ export interface Today {
   date: string;
   dayType: string;
   shift: { start: string; end: string };
+  partTime?: boolean;
   record: AttendanceRecord | null;
 }
 

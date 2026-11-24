@@ -8,6 +8,11 @@ const attendanceDaySchema = new Schema(
     date: { type: String, required: true }, // YYYY-MM-DD in office timezone
     checkIn: Date, // UTC; checkInIST is added by the IST plugin
     checkOut: Date,
+    // part-time staff only: every check-in / check-out pair of the day; checkIn/checkOut hold the first in and last out
+    sessions: {
+      type: [new Schema({ in: { type: Date, required: true }, out: { type: Date, default: null } }, { _id: false })],
+      default: undefined,
+    },
     workedMinutes: { type: Number, default: 0 },
     lateMinutes: { type: Number, default: 0 },
     earlyMinutes: { type: Number, default: 0 },
