@@ -6,3 +6,6 @@ coverage/
 .qodo/
 
 backups/
+
+# upload archives (may contain .env)
+*.zip
