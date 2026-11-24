@@ -12,7 +12,7 @@ import { Input, Select } from '@/components/ui/form-controls';
 import { EmptyRow, Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { CardGrid, CardLine, ViewToggle, useViewMode } from '@/components/common/ViewToggle';
 import { InternFormDialog, useDeleteIntern } from './InternForm';
-import { INTERN_STATUS_LABEL, payText, type InternRow, type InternStatus } from './types';
+import { INTERN_STATUS_LABEL, hm, payText, type InternRow, type InternStatus } from './types';
 
 export function InternStatusBadge({ status }: { status: InternStatus }) {
   const v = status === 'active' ? 'success' : status === 'onboarding' ? 'warning' : status === 'dropped' ? 'destructive' : status === 'converted' ? 'default' : 'secondary';
@@ -23,11 +23,12 @@ export function InternsPage() {
   const [view, setView] = useViewMode('interns');
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
+  const [month, setMonth] = useState(dayjs().format('YYYY-MM'));
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const del = useDeleteIntern();
   const dq = useDebounced(q);
-  const { data } = useGet<{ items: InternRow[]; canManage: boolean }>(['interns', 'list'], '/interns', { status: status || undefined, q: dq || undefined });
+  const { data } = useGet<{ items: InternRow[]; canManage: boolean }>(['interns', 'list'], '/interns', { status: status || undefined, q: dq || undefined, month });
   const today = dayjs().format('YYYY-MM-DD');
   return (
     <>
@@ -55,6 +56,10 @@ export function InternsPage() {
             </option>
           ))}
         </Select>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          Hours for
+          <Input type="month" className="w-40" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="Hours for month" />
+        </label>
       </div>
       <>
         <div className="mb-2 flex justify-end">
@@ -72,13 +77,14 @@ export function InternsPage() {
                   <TH>Mentor</TH>
                   <TH>Onboarding</TH>
                   <TH>Work</TH>
+                  <TH>Hours ({dayjs(`${month}-01`).format('MMM')})</TH>
                   {data?.canManage && <TH>Stipend</TH>}
                   <TH>Status</TH>
                   {data?.canManage && <TH />}
                 </TR>
               </THead>
               <TBody>
-                {!data?.items.length && <EmptyRow cols={data?.canManage ? 9 : 7} text={data?.canManage ? 'No interns yet. Use "Add intern" to start onboarding.' : 'No interns assigned to you.'} />}
+                {!data?.items.length && <EmptyRow cols={data?.canManage ? 10 : 8} text={data?.canManage ? 'No interns yet. Use "Add intern" to start onboarding.' : 'No interns assigned to you.'} />}
                 {data?.items.map((i) => {
                   const ending = i.status === 'active' && i.endDate >= today && i.endDate <= dayjs().add(14, 'day').format('YYYY-MM-DD');
                   return (
@@ -108,6 +114,18 @@ export function InternsPage() {
                       <TD className="text-xs">
                         {i.work.approved}/{i.work.total} approved
                         {!!i.work.submitted && <div className="text-amber-700">{i.work.submitted} to review</div>}
+                      </TD>
+                      <TD className="whitespace-nowrap text-sm">
+                        {i.hours.minutes ? (
+                          <Link to={`/attendance/employee/${i._id}?month=${month}`} className="font-medium hover:underline" title="Open their attendance for the month">
+                            {hm(i.hours.minutes)}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          {i.hours.days} day{i.hours.days === 1 ? '' : 's'}
+                        </div>
                       </TD>
                       {data.canManage && (
                         <TD className="text-sm">
@@ -157,6 +175,7 @@ export function InternsPage() {
                 <CardLine label="Period">{dayjs(i.startDate).format('DD MMM YY')} – {dayjs(i.endDate).format('DD MMM YY')}</CardLine>
                 <CardLine label="Mentor">{i.mentor?.name ?? '—'}</CardLine>
                 <CardLine label="Onboarding">{i.onboarding.done}/{i.onboarding.total}</CardLine>
+                <CardLine label={`Hours (${dayjs(`${month}-01`).format('MMM')})`}>{i.hours.minutes ? `${hm(i.hours.minutes)} · ${i.hours.days} day${i.hours.days === 1 ? '' : 's'}` : '—'}</CardLine>
                 <CardLine label="Work">{i.work.approved}/{i.work.total} approved{i.work.submitted ? ` · ${i.work.submitted} to review` : ''}</CardLine>
                 {data?.canManage && <CardLine label="Stipend">{payText(i)}</CardLine>}
                 {data?.canManage && (

@@ -155,8 +155,9 @@ describe('interns', () => {
     const after = (await request(app).get(`/api/interns/${r.body._id}`).set(hr.auth)).body;
     expect(after.stipendPayments[0]).toMatchObject({ month: '2026-10', hours: 10.5, amount: 157500 });
 
-    const list = (await request(app).get('/api/interns').query({ q: 'ABC Info' }).set(hr.auth).expect(200)).body;
+    const list = (await request(app).get('/api/interns').query({ q: 'ABC Info', month: '2026-10' }).set(hr.auth).expect(200)).body;
     expect(list.items.map((x: any) => x.organization)).toEqual(['ABC Infotech']);
+    expect(list.items[0].hours).toEqual({ minutes: 630, days: 2 }); // October only; the November day is not counted
   });
 
   it('a part-time intern checks in and out several times a day; hours add up; never late, half-day or absent', async () => {

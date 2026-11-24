@@ -23,6 +23,8 @@ export interface InternRow {
   hoursPerWeek?: number;
   onboarding: { done: number; total: number };
   work: { total: number; approved: number; submitted: number };
+  /** hours worked in the chosen month, from check-in / check-out */
+  hours: { minutes: number; days: number };
 }
 
 export type InternStatus = 'onboarding' | 'active' | 'completed' | 'dropped' | 'converted';

@@ -76,13 +76,13 @@ const orgOf = (i: { organization?: string | null; college?: string | null }) => 
 const by = (req: Request) => employeeName(req.user!.employeeId);
 
 // ---------- Lists ----------
-const listQuery = z.object({ status: z.enum(INTERN_STATUS).optional(), q: z.string().max(100).optional() });
+const listQuery = z.object({ status: z.enum(INTERN_STATUS).optional(), q: z.string().max(100).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).optional() });
 
 internsRouter.get(
   '/',
   validate(listQuery, 'query'),
   ah(async (req, res) => {
-    const { status, q } = req.query as z.infer<typeof listQuery>;
+    const { status, q, month = todayStr().slice(0, 7) } = req.query as z.infer<typeof listQuery>;
     const filter: Record<string, unknown> = {};
     if (!manages(req)) filter.mentor = req.user!.employeeId; // mentors see their own interns
     if (status) filter.status = status;
@@ -98,6 +98,12 @@ internsRouter.get(
       { $group: { _id: '$intern', total: { $sum: 1 }, approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } }, submitted: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } } } },
     ]);
     const w = new Map(work.map((x) => [String(x._id), x]));
+    // hours worked in the month, from check-in / check-out (all sessions for part-timers)
+    const att = await AttendanceDay.aggregate([
+      { $match: { employee: { $in: ids }, date: { $gte: `${month}-01`, $lte: `${month}-31` } } },
+      { $group: { _id: '$employee', minutes: { $sum: '$workedMinutes' }, days: { $sum: { $cond: [{ $gt: ['$workedMinutes', 0] }, 1, 0] } } } },
+    ]);
+    const hrs = new Map(att.map((x) => [String(x._id), { minutes: x.minutes as number, days: x.days as number }]));
     res.json({
       items: items.map((i) => ({
         _id: (i.employee as any)?._id,
@@ -114,7 +120,9 @@ internsRouter.get(
         hoursPerWeek: i.hoursPerWeek,
         onboarding: { done: i.checklist.filter((c) => c.done).length, total: i.checklist.length },
         work: w.get(String((i.employee as any)?._id)) ?? { total: 0, approved: 0, submitted: 0 },
+        hours: hrs.get(String((i.employee as any)?._id)) ?? { minutes: 0, days: 0 },
       })),
+      month,
       canManage: manages(req),
     });
   }),
